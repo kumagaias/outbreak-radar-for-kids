@@ -1,0 +1,30 @@
+const Colors = {
+  primary: "#0D9488",
+  primaryLight: "#5EEAD4",
+  primaryDark: "#0F766E",
+  primaryBg: "#F0FDFA",
+  accent: "#F59E0B",
+  accentLight: "#FEF3C7",
+  accentDark: "#D97706",
+  danger: "#EF4444",
+  dangerLight: "#FEE2E2",
+  warning: "#F59E0B",
+  warningLight: "#FEF3C7",
+  success: "#10B981",
+  successLight: "#D1FAE5",
+  background: "#F8FAFB",
+  surface: "#FFFFFF",
+  surfaceSecondary: "#F1F5F9",
+  text: "#1E293B",
+  textSecondary: "#64748B",
+  textTertiary: "#94A3B8",
+  border: "#E2E8F0",
+  borderLight: "#F1F5F9",
+  tabIconDefault: "#94A3B8",
+  tint: "#0D9488",
+  white: "#FFFFFF",
+  cardShadow: "rgba(15, 23, 42, 0.06)",
+};
+
+export default { light: Colors };
+export { Colors };
