@@ -109,6 +109,7 @@ function normalizeNWSSData(nwssData, historicalData = {}) {
       normalized.push({
         disease: diseaseName,
         location: {
+          country: 'US',
           state: geographicUnit.stateOrPrefecture,
           county: geographicUnit.countyOrWard || null
         },
@@ -162,6 +163,7 @@ function normalizeNHSNData(nhsnData, historicalData = {}) {
         normalized.push({
           disease: disease,
           location: {
+            country: 'US',
             state: state,
             county: null  // NHSN only provides state-level data
           },
@@ -215,6 +217,7 @@ function normalizeFluViewData(fluviewData, historicalData = {}) {
       normalized.push({
         disease: 'Influenza-like Illness',
         location: {
+          country: 'US',
           state: region.startsWith('hhs') ? null : region.toUpperCase(),
           county: null
         },
@@ -268,6 +271,7 @@ function normalizeFluSurvData(flusurvData, historicalData = {}) {
       normalized.push({
         disease: 'Influenza',
         location: {
+          country: 'US',
           state: location === 'network_all' ? null : location.toUpperCase(),
           county: null
         },

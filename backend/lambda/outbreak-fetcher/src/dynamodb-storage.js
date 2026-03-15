@@ -42,19 +42,20 @@ async function storeOutbreakData(outbreakData) {
   // Calculate expiration time (current time + 10 days)
   const expirationTime = Math.floor(Date.now() / 1000) + TTL_DURATION_SECONDS;
 
-  // Create DynamoDB item
+  // Create DynamoDB item (using camelCase for consistency with backend queries)
   const item = {
-    geographic_area: outbreakData.geographicArea,
-    disease_id: `${outbreakData.disease}_${Date.now()}`, // Include timestamp for uniqueness
-    disease_name: outbreakData.disease,
+    geographicArea: outbreakData.geographicArea,
+    diseaseId: `${outbreakData.disease}_${Date.now()}`, // Include timestamp for uniqueness
+    disease: outbreakData.disease,
+    country: outbreakData.country || 'US', // Add country field
     severity: outbreakData.severity,
     metrics: outbreakData.metrics,
-    normalized_metrics: outbreakData.normalizedMetrics,
-    last_updated: outbreakData.timestamp,
-    data_source: outbreakData.dataSource,
-    coverage_level: outbreakData.coverageLevel || 'exact',
-    proximity_adjustment: outbreakData.proximityAdjustment || 1.0,
-    expiration_time: expirationTime
+    normalizedMetrics: outbreakData.normalizedMetrics,
+    timestamp: outbreakData.timestamp,
+    dataSource: outbreakData.dataSource,
+    coverageLevel: outbreakData.coverageLevel || 'exact',
+    proximityAdjustment: outbreakData.proximityAdjustment || 1.0,
+    expirationTime: expirationTime
   };
 
   const command = new PutCommand({
@@ -65,8 +66,9 @@ async function storeOutbreakData(outbreakData) {
   try {
     const result = await docClient.send(command);
     console.log('Stored outbreak data:', {
-      geographicArea: item.geographic_area,
-      disease: item.disease_name,
+      geographicArea: item.geographicArea,
+      disease: item.disease,
+      country: item.country,
       severity: item.severity
     });
     return result;
@@ -100,17 +102,18 @@ async function batchStoreOutbreakData(outbreakDataArray) {
     const putRequests = batch.map(data => ({
       PutRequest: {
         Item: {
-          geographic_area: data.geographicArea,
-          disease_id: `${data.disease}_${Date.now()}_${i}`, // Include batch index for uniqueness
-          disease_name: data.disease,
+          geographicArea: data.geographicArea,
+          diseaseId: `${data.disease}_${Date.now()}_${i}`, // Include batch index for uniqueness
+          disease: data.disease,
+          country: data.country || 'US', // Add country field
           severity: data.severity,
           metrics: data.metrics,
-          normalized_metrics: data.normalizedMetrics,
-          last_updated: data.timestamp,
-          data_source: data.dataSource,
-          coverage_level: data.coverageLevel || 'exact',
-          proximity_adjustment: data.proximityAdjustment || 1.0,
-          expiration_time: expirationTime
+          normalizedMetrics: data.normalizedMetrics,
+          timestamp: data.timestamp,
+          dataSource: data.dataSource,
+          coverageLevel: data.coverageLevel || 'exact',
+          proximityAdjustment: data.proximityAdjustment || 1.0,
+          expirationTime: expirationTime
         }
       }
     }));
@@ -155,12 +158,12 @@ async function getOutbreakData(geographicArea, disease) {
 
   const command = new QueryCommand({
     TableName: TABLE_NAME,
-    KeyConditionExpression: 'geographic_area = :area AND begins_with(disease_id, :disease)',
+    KeyConditionExpression: 'geographicArea = :area AND begins_with(diseaseId, :disease)',
     ExpressionAttributeValues: {
       ':area': geographicArea,
       ':disease': disease
     },
-    ScanIndexForward: false, // Sort by disease_id descending (most recent first)
+    ScanIndexForward: false, // Sort by diseaseId descending (most recent first)
     Limit: 10 // Get latest 10 records
   });
 
@@ -185,7 +188,7 @@ async function getAllOutbreakDataForArea(geographicArea) {
 
   const command = new QueryCommand({
     TableName: TABLE_NAME,
-    KeyConditionExpression: 'geographic_area = :area',
+    KeyConditionExpression: 'geographicArea = :area',
     ExpressionAttributeValues: {
       ':area': geographicArea
     },

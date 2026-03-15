@@ -410,7 +410,8 @@ async function storeData(combinedData) {
 
   // Transform combined data to DynamoDB format
   const dynamoDBItems = combinedData.map(data => ({
-    geographicArea: data.location.state || 'NATIONAL',
+    geographicArea: data.location.state || data.location.prefecture || 'National',
+    country: data.location.country || 'US', // Add country field
     disease: data.disease,
     severity: data.severity,
     metrics: data.metrics,
