@@ -6,6 +6,7 @@
 const DataAnonymizer = require('./lib/data-anonymizer');
 const SharedCacheManager = require('./lib/shared-cache-manager');
 const NovaService = require('./lib/nova-service');
+const OutbreakDataService = require('./lib/outbreak-data-service');
 const { generateFallbackRecommendation } = require('./lib/fallback-templates');
 
 // Initialize services
@@ -19,19 +20,85 @@ const novaService = new NovaService(
   process.env.GUARDRAIL_VERSION || 'DRAFT',
   process.env.BEDROCK_REGION || 'us-east-1'
 );
+const outbreakDataService = new OutbreakDataService(
+  process.env.DYNAMODB_OUTBREAK_TABLE_NAME,
+  process.env.AWS_REGION || 'us-east-1'
+);
 
 /**
  * Main Lambda handler
+ * Routes requests to appropriate handler based on HTTP method and path
  * @param {Object} event - API Gateway event
  * @returns {Promise<Object>} API Gateway response
  */
 exports.handler = async (event) => {
   const requestId = event.requestContext?.requestId || 'unknown';
   const startTime = Date.now();
+  const httpMethod = event.httpMethod || event.requestContext?.http?.method;
+  const path = event.path || event.requestContext?.http?.path;
   
   console.log('Request ID:', requestId);
+  console.log('HTTP Method:', httpMethod);
+  console.log('Path:', path);
   console.log('Environment:', process.env.ENVIRONMENT);
   
+  try {
+    // Route to appropriate handler
+    if (httpMethod === 'GET' && path?.includes('/outbreak-data')) {
+      return await handleGetOutbreakData(event);
+    } else if (httpMethod === 'OPTIONS') {
+      return createOptionsResponse();
+    } else {
+      // Default to POST /recommendations/generate for backward compatibility
+      return await handleGenerateRecommendation(event, requestId, startTime);
+    }
+  } catch (error) {
+    console.error('Handler error:', error);
+    return createErrorResponse(500, 'Internal server error');
+  }
+};
+
+/**
+ * Handle GET /outbreak-data request
+ * @param {Object} event - API Gateway event
+ * @returns {Promise<Object>} API Gateway response
+ */
+async function handleGetOutbreakData(event) {
+  try {
+    const queryParams = event.queryStringParameters || {};
+    const area = queryParams.area;
+    const country = queryParams.country || 'US';
+    
+    if (!area) {
+      return createErrorResponse(400, 'Missing required parameter: area');
+    }
+    
+    console.log(`Fetching outbreak data for ${area}, ${country}`);
+    
+    const outbreakData = await outbreakDataService.getOutbreakDataForArea(area, country);
+    
+    console.log(`Found ${outbreakData.length} outbreak records`);
+    
+    return createSuccessResponse({
+      data: outbreakData,
+      area,
+      country,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error fetching outbreak data:', error);
+    return createErrorResponse(500, 'Failed to fetch outbreak data');
+  }
+}
+
+/**
+ * Handle POST /recommendations/generate request
+ * @param {Object} event - API Gateway event
+ * @param {string} requestId - Request ID
+ * @param {number} startTime - Request start time
+ * @returns {Promise<Object>} API Gateway response
+ */
+async function handleGenerateRecommendation(event, requestId, startTime) {
   try {
     // Parse request body
     let request;
@@ -143,7 +210,7 @@ exports.handler = async (event) => {
     
     return createErrorResponse(500, 'Internal server error');
   }
-};
+}
 
 /**
  * Parses request body from API Gateway event
@@ -165,6 +232,22 @@ function parseRequestBody(event) {
 }
 
 /**
+ * Creates OPTIONS response for CORS preflight
+ * @returns {Object} API Gateway response
+ */
+function createOptionsResponse() {
+  return {
+    statusCode: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
+    },
+    body: ''
+  };
+}
+
+/**
  * Creates success response
  * @param {Object} data - Response data
  * @returns {Object} API Gateway response
@@ -176,7 +259,7 @@ function createSuccessResponse(data) {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-      'Access-Control-Allow-Methods': 'POST,OPTIONS'
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
     },
     body: JSON.stringify(data)
   };
@@ -205,7 +288,7 @@ function createErrorResponse(statusCode, message, errors = null) {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-      'Access-Control-Allow-Methods': 'POST,OPTIONS'
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
     },
     body: JSON.stringify(body)
   };

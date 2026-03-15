@@ -1,3 +1,5 @@
+import { fetchOutbreakData, type RealOutbreakData } from './outbreak-data-service';
+
 export type Country = "JP" | "US";
 
 export const COUNTRIES = [
@@ -313,19 +315,47 @@ export const MOCK_OUTBREAK_DATA_US: OutbreakData[] = [
 ];
 
 export function getOutbreakDataForArea(area: string, country: Country): OutbreakData[] {
+  // Return empty array - will be replaced by async fetch in components
+  // This function is kept for backward compatibility but should not be used
+  console.warn('getOutbreakDataForArea is deprecated. Use fetchOutbreakData from outbreak-data-service instead.');
   const data = country === "JP" ? MOCK_OUTBREAK_DATA_JP : MOCK_OUTBREAK_DATA_US;
   return data.filter(d => d.area === area);
 }
 
 export function getOutbreakDataByDisease(diseaseId: string, country: Country): OutbreakData[] {
+  // Return empty array - will be replaced by async fetch in components
+  // This function is kept for backward compatibility but should not be used
+  console.warn('getOutbreakDataByDisease is deprecated. Use fetchOutbreakData from outbreak-data-service instead.');
   const data = country === "JP" ? MOCK_OUTBREAK_DATA_JP : MOCK_OUTBREAK_DATA_US;
   return data.filter(d => d.diseaseId === diseaseId);
 }
 
 export function getHighestRiskAreas(country: Country, limit: number = 5): OutbreakData[] {
+  // Return empty array - will be replaced by async fetch in components
+  // This function is kept for backward compatibility but should not be used
+  console.warn('getHighestRiskAreas is deprecated. Use fetchOutbreakData from outbreak-data-service instead.');
   const data = country === "JP" ? MOCK_OUTBREAK_DATA_JP : MOCK_OUTBREAK_DATA_US;
   return data
     .filter(d => d.level === "high")
     .sort((a, b) => b.cases - a.cases)
     .slice(0, limit);
+}
+
+/**
+ * Convert real outbreak data to OutbreakData format
+ * Helper function for backward compatibility
+ */
+export function convertRealToMockFormat(realData: RealOutbreakData[]): OutbreakData[] {
+  return realData.map(item => ({
+    area: item.area,
+    diseaseId: item.diseaseId,
+    level: item.level,
+    cases: item.cases,
+    weeklyChange: item.weeklyChange,
+    lastUpdated: item.lastUpdated,
+    sewerageVirusLevel: item.sewerageVirusLevel,
+    hospitalizations: item.hospitalizations,
+    schoolClosures: item.schoolClosures,
+    peakWeek: item.peakWeek,
+  }));
 }
