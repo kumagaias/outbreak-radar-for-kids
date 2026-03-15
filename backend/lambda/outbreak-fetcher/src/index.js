@@ -44,6 +44,15 @@ const TARGET_STATES = process.env.TARGET_STATES
   ? process.env.TARGET_STATES.split(',')
   : ['CA', 'NY', 'TX', 'FL', 'IL']; // Default to top 5 populous states
 
+// State code to full name mapping for NWSS API
+const STATE_CODE_TO_NAME = {
+  'CA': 'California',
+  'NY': 'New York',
+  'TX': 'Texas',
+  'FL': 'Florida',
+  'IL': 'Illinois'
+};
+
 // Japan data configuration
 const FETCH_JAPAN_DATA = process.env.FETCH_JAPAN_DATA === 'true'; // Default to false (disabled)
 const ESTAT_STATS_DATA_ID = process.env.ESTAT_STATS_DATA_ID || ''; // e-Stat dataset ID for norovirus data
@@ -148,8 +157,9 @@ async function fetchAllSources(states) {
 
   // Fetch from all sources in parallel
   const fetchPromises = states.flatMap(state => [
-    // NWSS wastewater data (fetches data from 8 weeks ago with 30-day lookback)
-    fetchWithRetry(() => fetchNWSSData({ state }))
+    // NWSS wastewater data (fetches data from 6 months ago with 30-day lookback)
+    // NWSS API uses full state names, not state codes
+    fetchWithRetry(() => fetchNWSSData({ state: STATE_CODE_TO_NAME[state] || state }))
       .then(data => {
         results.nwss.data.push(...data);
         results.nwss.success = true;
