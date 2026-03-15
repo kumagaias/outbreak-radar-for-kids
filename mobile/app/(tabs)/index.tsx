@@ -315,29 +315,7 @@ export default function HomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Section 1: AI Recommendations */}
-        <View style={styles.recommendationSection}>
-          {riskLevel && (
-            <View style={styles.section}>
-              <RiskIndicator level={riskLevel as RiskIndicatorLevel} />
-            </View>
-          )}
-
-          {isGenerating && riskLevel && !recommendation && (
-            <View style={styles.section}>
-              <LoadingMessage
-                riskLevel={riskLevel as RiskIndicatorLevel}
-                message={
-                  profile?.country === 'JP'
-                    ? 'パーソナライズされたガイダンスを生成中...'
-                    : 'Generating personalized guidance...'
-                }
-              />
-            </View>
-          )}
-        </View>
-
-        {/* Section 2: Local Outbreak Status */}
+        {/* Section 1: Local Outbreak Status */}
         <View style={styles.outbreakSection}>
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -441,20 +419,39 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Section 3: Recommendation Content (only show if outbreaks exist or risk is not LOW) */}
+        {/* Section 2: Recommendation Content with Risk Indicator (only show if outbreaks exist or risk is not LOW) */}
         {recommendation && (outbreakData.length > 0 || riskLevel !== RiskLevel.LOW) && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="shield-checkmark" size={20} color={Colors.primary} />
-              <Text style={styles.sectionTitle}>
-                {profile.country === "JP" 
-                  ? `${profile.area}の対策` 
-                  : `${profile.area} Recommendations`}
-              </Text>
+          <View style={styles.recommendationSection}>
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="shield-checkmark" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitle}>
+                  {profile.country === "JP" 
+                    ? `${profile.area}の対策` 
+                    : `${profile.area} Recommendations`}
+                </Text>
+              </View>
+              {riskLevel && (
+                <View style={styles.riskIndicatorInline}>
+                  <RiskIndicator level={riskLevel as RiskIndicatorLevel} />
+                </View>
+              )}
+              {isGenerating && !recommendation && (
+                <LoadingMessage
+                  riskLevel={riskLevel as RiskIndicatorLevel}
+                  message={
+                    profile?.country === 'JP'
+                      ? 'パーソナライズされたガイダンスを生成中...'
+                      : 'Generating personalized guidance...'
+                  }
+                />
+              )}
+              {recommendation && (
+                <RecommendationContent
+                  recommendation={recommendation}
+                />
+              )}
             </View>
-            <RecommendationContent
-              recommendation={recommendation}
-            />
           </View>
         )}
 
@@ -732,5 +729,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 20,
     marginTop: 16,
+  },
+  riskIndicatorInline: {
+    marginTop: 8,
+    marginBottom: 16,
   },
 });
