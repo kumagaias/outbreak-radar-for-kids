@@ -439,7 +439,7 @@ export default function SettingsScreen() {
         </View>
 
         {/* Development Section */}
-        {__DEV__ && (
+        {(true || __DEV__) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>開発用 / Development</Text>
             
