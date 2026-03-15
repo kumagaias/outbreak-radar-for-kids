@@ -253,7 +253,9 @@ export default function HomeScreen() {
     setRefreshing(true);
     try {
       const childProfile = convertProfileToChildProfile(profile);
-      const language = profile.country === 'JP' ? Language.JAPANESE : Language.ENGLISH;
+      // Use device locale to determine language, not country
+      const deviceLocale = Localization.locale || 'en';
+      const language = deviceLocale.startsWith('ja') ? Language.JAPANESE : Language.ENGLISH;
 
       // Reload outbreak data
       await loadOutbreakData();
