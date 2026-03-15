@@ -20,11 +20,24 @@ import { useProfile, type Child } from "@/lib/profile-context";
 import { t } from "@/lib/i18n";
 import { getCurrentArea, getCurrentCountryAndArea } from "@/lib/location";
 
+// Detect browser language and return default country
+function detectBrowserLanguage(): Country {
+  if (Platform.OS === "web") {
+    const browserLang = navigator.language || (navigator as any).userLanguage;
+    // Check if browser language is Japanese
+    if (browserLang.startsWith("ja")) {
+      return "JP";
+    }
+  }
+  // Default to US for all other cases
+  return "US";
+}
+
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const { saveProfile } = useProfile();
   const [step, setStep] = useState<"country" | "area" | "children">("country");
-  const [selectedCountry, setSelectedCountry] = useState<Country | "">("");
+  const [selectedCountry, setSelectedCountry] = useState<Country | "">(detectBrowserLanguage());
   const [selectedArea, setSelectedArea] = useState("");
   const [children, setChildren] = useState<Child[]>([]);
   const [currentChildName, setCurrentChildName] = useState("");
