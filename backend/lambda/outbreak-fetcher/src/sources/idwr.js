@@ -1,15 +1,16 @@
 /**
- * IDWR (Infectious Disease Weekly Report) HTML Data Fetcher
+ * IDWR (Infectious Disease Weekly Report) CSV Data Fetcher
  * 
  * Fetches weekly infectious disease reports from JIHS (Japan Institute for Health Security)
  * Data source: IDWR (https://id-info.jihs.go.jp/surveillance/idwr/)
- * Method: HTML scraping (no API key required)
+ * Method: CSV download (Shift-JIS encoded)
  * 
  * Requirements: 19.26, 19.33
- * Note: HTML format may vary - robust parsing is critical
+ * Note: CSV files are Shift-JIS encoded and require proper decoding
  */
 
 const https = require('https');
+const iconv = require('iconv-lite');
 
 const IDWR_BASE_URL = 'https://id-info.jihs.go.jp/surveillance/idwr/provisional';
 const TIMEOUT_MS = 15000;  // Longer timeout for Japan data sources
@@ -27,12 +28,12 @@ const DISEASE_MAPPING = {
 };
 
 /**
- * Fetch IDWR HTML data with redirect following
+ * Fetch IDWR CSV data with redirect following and Shift-JIS decoding
  * @param {Object} options - Fetch options
  * @param {number} options.year - Year (e.g., 2025)
  * @param {number} options.week - Week number (1-52)
  * @param {number} maxRedirects - Maximum number of redirects to follow
- * @returns {Promise<string>} HTML data as string
+ * @returns {Promise<string>} CSV data as UTF-8 string
  */
 async function fetchIDWRData(options = {}, maxRedirects = 5) {
   const { year, week } = options;
@@ -41,11 +42,11 @@ async function fetchIDWRData(options = {}, maxRedirects = 5) {
     throw new Error('year and week parameters are required');
   }
   
-  // Construct URL for HTML page
+  // Construct URL for CSV file (定点把握疾患 - sentinel surveillance diseases)
   const weekStr = week.toString().padStart(2, '0');
-  const url = `${IDWR_BASE_URL}/${year}/${weekStr}/index.html`;
+  const url = `${IDWR_BASE_URL}/${year}/${weekStr}/${year}-${weekStr}-teiten.csv`;
   
-  console.log(`Fetching IDWR data from: ${url}`);
+  console.log(`Fetching IDWR CSV from: ${url}`);
   
   return new Promise((resolve, reject) => {
     let redirectCount = 0;
@@ -67,7 +68,7 @@ async function fetchIDWRData(options = {}, maxRedirects = 5) {
         }
         
         if (res.statusCode !== 200) {
-          reject(new Error(`HTTP ${res.statusCode}: Not Found`));
+          reject(new Error(`HTTP ${res.statusCode}: CSV file not found`));
           return;
         }
         
@@ -80,16 +81,18 @@ async function fetchIDWRData(options = {}, maxRedirects = 5) {
         res.on('end', () => {
           try {
             const buffer = Buffer.concat(chunks);
-            const htmlData = buffer.toString('utf-8');
             
-            if (!htmlData || htmlData.trim().length === 0) {
-              reject(new Error('Empty HTML response'));
+            // Decode from Shift-JIS to UTF-8
+            const csvData = iconv.decode(buffer, 'shift-jis');
+            
+            if (!csvData || csvData.trim().length === 0) {
+              reject(new Error('Empty CSV response'));
               return;
             }
             
-            resolve(htmlData);
+            resolve(csvData);
           } catch (error) {
-            reject(new Error(`Failed to decode IDWR HTML: ${error.message}`));
+            reject(new Error(`Failed to decode IDWR CSV: ${error.message}`));
           }
         });
       });
@@ -109,49 +112,74 @@ async function fetchIDWRData(options = {}, maxRedirects = 5) {
 }
 
 /**
- * Parse IDWR HTML data to extract disease case counts
- * @param {string} htmlData - HTML data as string
+ * Parse IDWR CSV data to extract disease case counts
+ * @param {string} csvData - CSV data as UTF-8 string
  * @returns {Array<Object>} Parsed records
  */
-function parseIDWRHTML(htmlData) {
-  if (!htmlData || typeof htmlData !== 'string') {
+function parseIDWRCSV(csvData) {
+  if (!csvData || typeof csvData !== 'string') {
     return [];
   }
   
   const records = [];
+  const lines = csvData.split('\n');
   
-  // Extract disease data from HTML tables
-  // IDWR uses tables with disease names and case counts by prefecture
+  if (lines.length < 5) {
+    return records;
+  }
   
-  // Simple regex-based extraction (more robust than full HTML parsing for this use case)
-  // Look for patterns like: <td>RSウイルス感染症</td><td>123</td>
+  // Parse header row (row 3) to find disease column indices
+  const headerLine = lines[2]; // 3rd row contains disease names
+  const headers = parseCSVLine(headerLine);
   
-  const diseasePatterns = [
-    { ja: 'RSウイルス感染症', en: 'RSV' },
-    { ja: 'インフルエンザ', en: 'Influenza' },
-    { ja: '手足口病', en: 'Hand-Foot-Mouth Disease' },
-    { ja: 'ヘルパンギーナ', en: 'Herpangina' },
-    { ja: '感染性胃腸炎', en: 'Norovirus' },
-    { ja: '新型コロナウイルス感染症', en: 'COVID-19' },
-    { ja: '麻疹', en: 'Measles' }
-  ];
+  // Disease name mapping (Japanese to English)
+  const diseaseMapping = {
+    'インフルエンザ': 'Influenza',
+    'ＲＳウイルス感染症': 'RSV',
+    '手足口病': 'Hand-Foot-Mouth Disease',
+    'ヘルパンギーナ': 'Herpangina',
+    '感染性胃腸炎': 'Norovirus',
+    'COVID-19': 'COVID-19',
+    '麻疹': 'Measles'
+  };
   
-  // Extract national-level data (total cases)
-  for (const disease of diseasePatterns) {
-    // Look for disease name followed by case count
-    const regex = new RegExp(`${disease.ja}[\\s\\S]{0,500}?<td[^>]*>([\\d,]+)</td>`, 'g');
-    const matches = [...htmlData.matchAll(regex)];
+  // Find column indices for each disease (報告 = report count)
+  const diseaseColumns = {};
+  headers.forEach((header, index) => {
+    const diseaseName = header.trim();
+    if (diseaseMapping[diseaseName]) {
+      // Next column should be "報告" (report count)
+      diseaseColumns[diseaseMapping[diseaseName]] = {
+        nameIndex: index,
+        countIndex: index + 1,
+        nameJa: diseaseName
+      };
+    }
+  });
+  
+  // Parse data rows (starting from row 5 - row 4 is sub-headers)
+  for (let i = 4; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
     
-    if (matches.length > 0) {
-      // Take the first match (usually national total)
-      const caseCountStr = matches[0][1].replace(/,/g, '');
-      const caseCount = parseInt(caseCountStr) || 0;
+    const values = parseCSVLine(line);
+    if (values.length < 2) continue;
+    
+    const prefecture = values[0].replace(/"/g, '').trim();
+    if (!prefecture || prefecture === '総数') continue; // Skip total row
+    
+    // Extract case counts for each disease
+    for (const [diseaseEn, colInfo] of Object.entries(diseaseColumns)) {
+      const countStr = values[colInfo.countIndex];
+      if (!countStr || countStr === '-' || countStr === '""') continue;
+      
+      const caseCount = parseInt(countStr.replace(/,/g, '').replace(/"/g, '')) || 0;
       
       if (caseCount > 0) {
         records.push({
-          disease: disease.en,
-          diseaseJa: disease.ja,
-          prefecture: 'National',
+          disease: diseaseEn,
+          diseaseJa: colInfo.nameJa,
+          prefecture: prefecture,
           caseCount: caseCount
         });
       }
@@ -162,7 +190,7 @@ function parseIDWRHTML(htmlData) {
 }
 
 /**
- * Parse CSV line (handles quoted fields) - kept for backward compatibility
+ * Parse CSV line (handles quoted fields)
  * @param {string} line - CSV line
  * @returns {Array<string>} Parsed values
  */
@@ -175,16 +203,22 @@ function parseCSVLine(line) {
     const char = line[i];
     
     if (char === '"') {
-      inQuotes = !inQuotes;
+      if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
+        // Escaped quote
+        current += '"';
+        i++; // Skip next quote
+      } else {
+        inQuotes = !inQuotes;
+      }
     } else if (char === ',' && !inQuotes) {
-      values.push(current.trim());
+      values.push(current);
       current = '';
     } else {
       current += char;
     }
   }
   
-  values.push(current.trim());
+  values.push(current);
   return values;
 }
 
@@ -225,9 +259,9 @@ async function fetchWeekData(year, week, maxFallbackWeeks = 4) {
   // Try current week and up to maxFallbackWeeks previous weeks
   for (let i = 0; i <= maxFallbackWeeks; i++) {
     try {
-      console.log(`Attempting to fetch IDWR data for ${currentYear}-W${currentWeek}...`);
-      const htmlData = await fetchIDWRData({ year: currentYear, week: currentWeek });
-      const records = parseIDWRHTML(htmlData);
+      console.log(`Attempting to fetch IDWR CSV for ${currentYear}-W${currentWeek}...`);
+      const csvData = await fetchIDWRData({ year: currentYear, week: currentWeek });
+      const records = parseIDWRCSV(csvData);
       
       if (records.length > 0) {
         console.log(`Successfully fetched ${records.length} records for ${currentYear}-W${currentWeek}`);
@@ -256,7 +290,7 @@ async function fetchWeekData(year, week, maxFallbackWeeks = 4) {
 
 module.exports = {
   fetchIDWRData,
-  parseIDWRHTML,
+  parseIDWRCSV,
   parseCSVLine,
   normalizeIDWRRecord,
   fetchWeekData,
