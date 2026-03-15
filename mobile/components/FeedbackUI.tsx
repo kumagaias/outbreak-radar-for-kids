@@ -93,30 +93,30 @@ export const FeedbackUI: React.FC<FeedbackUIProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 6,
+    marginTop: 12,
+    padding: 8,
+    backgroundColor: '#fafafa',
+    borderRadius: 4,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: '#e8e8e8',
   },
   questionText: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '400',
-    color: '#666',
-    marginBottom: 8,
+    color: '#888',
+    marginBottom: 6,
     textAlign: 'center'
   },
   buttonContainer: {
     flexDirection: 'row',
-    gap: 8
+    gap: 6
   },
   button: {
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-    borderRadius: 4,
-    minWidth: 60,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 3,
+    minWidth: 50,
     alignItems: 'center'
   },
   yesButton: {
@@ -127,11 +127,11 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#fff',
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '500'
   },
   thankYouText: {
-    fontSize: 13,
+    fontSize: 11,
     color: '#4CAF50',
     fontWeight: '400'
   }

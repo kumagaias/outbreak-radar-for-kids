@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
   },
   section: {
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 12,
   },
   sectionHeader: {
     flexDirection: "row",
