@@ -22,3 +22,9 @@ variable "cloudwatch_log_group_arn" {
   description = "CloudWatch log group ARN"
   type        = string
 }
+
+variable "dynamodb_outbreak_table_arn" {
+  description = "DynamoDB outbreak data table ARN (optional)"
+  type        = string
+  default     = ""
+}

@@ -14,6 +14,9 @@ resource "aws_lambda_function" "this" {
   
   memory_size = var.memory_size
   timeout     = var.timeout
+  
+  # Publish version for Provisioned Concurrency
+  publish = var.enable_provisioned_concurrency
 
   environment {
     variables = var.environment_variables
@@ -36,7 +39,7 @@ resource "aws_cloudwatch_log_group" "lambda_logs" {
 resource "aws_lambda_permission" "api_gateway" {
   count = var.api_gateway_execution_arn != "" ? 1 : 0
 
-  statement_id  = "AllowAPIGatewayInvoke-${var.function_name}"
+  statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.this.function_name
   principal     = "apigateway.amazonaws.com"
@@ -70,7 +73,7 @@ resource "aws_appautoscaling_target" "lambda_provisioned_concurrency" {
 
   max_capacity       = var.provisioned_concurrency_max
   min_capacity       = var.provisioned_concurrency_min
-  resource_id        = "function:${aws_lambda_function.this.function_name}:provisioned-concurrency:${aws_lambda_alias.live[0].name}"
+  resource_id        = "function:${aws_lambda_function.this.function_name}:${aws_lambda_alias.live[0].name}"
   scalable_dimension = "lambda:function:ProvisionedConcurrency"
   service_namespace  = "lambda"
 

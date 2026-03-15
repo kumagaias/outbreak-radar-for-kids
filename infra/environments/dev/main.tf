@@ -90,6 +90,7 @@ module "lambda" {
   environment_variables = {
     DYNAMODB_CACHE_TABLE_NAME        = module.dynamodb_cache.table_name
     DYNAMODB_SHARED_CACHE_TABLE_NAME = module.dynamodb_shared_cache.table_name
+    DYNAMODB_OUTBREAK_TABLE_NAME     = module.dynamodb_outbreak_data.table_name
     GUARDRAIL_ID                     = module.bedrock_guardrails.guardrail_id
     GUARDRAIL_VERSION                = "DRAFT"
     ENVIRONMENT                      = var.environment
@@ -119,6 +120,7 @@ module "lambda_iam" {
   lambda_function_name            = "nova-recommendations-${var.environment}"
   dynamodb_cache_table_arn        = module.dynamodb_cache.table_arn
   dynamodb_shared_cache_table_arn = module.dynamodb_shared_cache.table_arn
+  dynamodb_outbreak_table_arn     = module.dynamodb_outbreak_data.table_arn
   cloudwatch_log_group_arn        = module.lambda.log_group_arn
 }
 

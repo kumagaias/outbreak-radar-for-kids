@@ -66,10 +66,13 @@ resource "aws_iam_role_policy" "dynamodb_access" {
           "dynamodb:UpdateItem",
           "dynamodb:BatchWriteItem"
         ]
-        Resource = [
-          var.dynamodb_cache_table_arn,
-          var.dynamodb_shared_cache_table_arn
-        ]
+        Resource = concat(
+          [
+            var.dynamodb_cache_table_arn,
+            var.dynamodb_shared_cache_table_arn
+          ],
+          var.dynamodb_outbreak_table_arn != "" ? [var.dynamodb_outbreak_table_arn] : []
+        )
       }
     ]
   })
