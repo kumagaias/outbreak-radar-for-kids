@@ -1,0 +1,8 @@
+{
+  "body": "{\"ageRange\":\"2-3\",\"geographicArea\":\"Tokyo, JP\",\"language\":\"ja\",\"riskLevel\":\"high\",\"outbreakData\":[{\"disease\":\"Influenza\",\"severity\":7.5,\"trend\":\"increasing\"}]}",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "httpMethod": "POST",
+  "path": "/recommendations/generate"
+}

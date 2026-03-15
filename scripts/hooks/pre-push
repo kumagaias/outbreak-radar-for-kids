@@ -1,0 +1,31 @@
+#!/bin/sh
+
+# Pre-push hook: Run comprehensive tests and security checks before push
+
+echo "🔍 Running pre-push checks..."
+
+# Run unit tests
+echo "Running unit tests..."
+make test-unit
+if [ $? -ne 0 ]; then
+  echo "❌ Unit tests failed. Fix them before pushing."
+  exit 1
+fi
+
+# Run security checks
+echo "Running security checks..."
+make test-security
+if [ $? -ne 0 ]; then
+  echo "❌ Security vulnerabilities found. Fix them before pushing."
+  exit 1
+fi
+
+# Run gitleaks secret scanning
+echo "Running gitleaks secret scanning..."
+gitleaks protect --staged --verbose
+if [ $? -ne 0 ]; then
+  echo "❌ Secrets detected. Remove them before pushing."
+  exit 1
+fi
+
+echo "✅ All pre-push checks passed. Proceeding with push."

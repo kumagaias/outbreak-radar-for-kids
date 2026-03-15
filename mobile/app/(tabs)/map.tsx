@@ -10,7 +10,6 @@ import {
   Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import MapView, { Polygon, PROVIDER_GOOGLE } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/colors";
 import { useProfile } from "@/lib/profile-context";
@@ -25,9 +24,31 @@ import {
   type OutbreakData,
 } from "@/lib/mock-data";
 
-// Import accurate GeoJSON data
-import japanPrefectures from "@/assets/geojson/japan-prefectures.json";
-import usStates from "@/assets/geojson/us-states.json";
+// Conditionally import MapView and GeoJSON only on native platforms
+let MapView: any;
+let Polygon: any;
+let PROVIDER_GOOGLE: any;
+let japanPrefectures: any;
+let usStates: any;
+let WebMap: any;
+
+if (Platform.OS !== "web") {
+  const MapModule = require("react-native-maps");
+  MapView = MapModule.default;
+  Polygon = MapModule.Polygon;
+  PROVIDER_GOOGLE = MapModule.PROVIDER_GOOGLE;
+  
+  // Import accurate GeoJSON data
+  japanPrefectures = require("@/assets/geojson/japan-prefectures.json");
+  usStates = require("@/assets/geojson/us-states.json");
+} else {
+  // Import Web map component
+  WebMap = require("@/components/WebMap").default;
+  
+  // Import GeoJSON data for web
+  japanPrefectures = require("@/assets/geojson/japan-prefectures.json");
+  usStates = require("@/assets/geojson/us-states.json");
+}
 
 // Helper function to convert GeoJSON coordinates to react-native-maps format
 function convertGeoJSONToCoordinates(coordinates: number[][][]): Array<{ latitude: number; longitude: number }> {
@@ -96,6 +117,11 @@ const PREFECTURE_NAME_MAP: Record<string, string> = {
 // Build polygon map from accurate GeoJSON (supports both Polygon and MultiPolygon)
 const buildPolygonMap = (country: "JP" | "US") => {
   const map: Record<string, Array<Array<{ latitude: number; longitude: number }>>> = {};
+  
+  // Check if GeoJSON data is available
+  if (!japanPrefectures || !usStates) {
+    return map;
+  }
   
   if (country === "JP") {
     // Use japan-prefectures.json
@@ -396,6 +422,17 @@ export default function MapScreen() {
               {strings.map.selectDiseaseDesc}
             </Text>
           </View>
+        ) : Platform.OS === "web" ? (
+          <WebMap
+            center={userCoords}
+            zoom={profile.country === "JP" ? 6 : 5}
+            outbreakData={outbreakData}
+            polygonMap={polygonMap}
+            onRegionPress={(area) => {
+              const outbreak = outbreakData.find((o) => o.area === area);
+              if (outbreak) handleRegionPress(outbreak);
+            }}
+          />
         ) : (
           <MapView
             style={styles.map}
@@ -698,6 +735,7 @@ const styles = StyleSheet.create({
   },
   mapContainer: {
     flex: 1,
+    height: '100%',
   },
   map: {
     flex: 1,
@@ -728,7 +766,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     gap: 20,
-    paddingVertical: 12,
+    paddingVertical: 8,
     paddingHorizontal: 24,
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,

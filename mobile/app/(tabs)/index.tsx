@@ -5,7 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   Platform,
-  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,14 +19,89 @@ import {
   getOutbreakDataForArea,
   getHighestRiskAreas,
 } from "@/lib/mock-data";
-import { generateRecommendations, type Recommendation } from "@/lib/ai-recommendations";
+
+// AI Recommendation Components
+import { RiskIndicator, type RiskLevel as RiskIndicatorLevel } from '@/components/RiskIndicator';
+import { RecommendationContent, DataTimestamp } from '@/components/RecommendationContent';
+import { LoadingMessage } from '@/components/LoadingMessage';
+import { MedicalDisclaimer } from '@/components/MedicalDisclaimer';
+import { FeedbackUI } from '@/components/FeedbackUI';
+
+// AI Recommendation Services
+import {
+  RiskAnalyzer,
+  RecommendationGenerator,
+  CacheManager,
+  NovaService,
+  RiskLevel,
+  AgeRange,
+  Language,
+  type Recommendation,
+  type OutbreakData,
+  type ChildProfile,
+} from '@/lib/ai-recommendations';
+
+// Convert mock data to OutbreakData format
+function convertMockToOutbreakData(mockData: any[]): OutbreakData[] {
+  return mockData.map(outbreak => ({
+    diseaseId: outbreak.diseaseId,
+    diseaseName: outbreak.diseaseName || outbreak.diseaseId,
+    diseaseNameLocal: outbreak.diseaseNameLocal,
+    severity: outbreak.level === 'high' ? 8 : outbreak.level === 'medium' ? 5 : 2,
+    geographicUnit: {
+      country: (outbreak.country || 'JP') as 'JP' | 'US',
+      stateOrPrefecture: outbreak.area || 'Tokyo',
+    },
+    affectedAgeRanges: [AgeRange.INFANT, AgeRange.TODDLER, AgeRange.PRESCHOOL],
+    reportedCases: outbreak.cases || 0,
+    timestamp: new Date(),
+  }));
+}
+
+// Convert profile to ChildProfile format
+function convertProfileToChildProfile(profile: any): ChildProfile {
+  let ageRange = AgeRange.PRESCHOOL;
+  if (profile.children && profile.children.length > 0) {
+    const firstChild = profile.children[0];
+    const ageGroup = firstChild.ageGroup;
+    
+    if (ageGroup === '0-1') ageRange = AgeRange.INFANT;
+    else if (ageGroup === '2-3') ageRange = AgeRange.TODDLER;
+    else if (ageGroup === '4-6') ageRange = AgeRange.PRESCHOOL;
+    else ageRange = AgeRange.SCHOOL_AGE;
+  }
+
+  return {
+    ageRange,
+    location: {
+      country: (profile.country || 'JP') as 'JP' | 'US',
+      stateOrPrefecture: profile.area || 'Tokyo',
+    },
+  };
+}
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { profile, isLoading } = useProfile();
   const webTopInset = Platform.OS === "web" ? 67 : 0;
+  
+  // AI Recommendation State
+  const [riskLevel, setRiskLevel] = useState<RiskLevel | null>(null);
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
-  const [loadingRecommendation, setLoadingRecommendation] = useState(false);
+  const [outbreakDataTimestamp, setOutbreakDataTimestamp] = useState<Date | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // AI Services
+  const [riskAnalyzer] = useState(() => new RiskAnalyzer());
+  const [cacheManager] = useState(() => new CacheManager());
+  const [recommendationGenerator] = useState(() => {
+    // NovaService is initialized with API endpoint from aws-exports
+    const apiEndpoint = 'https://hexygw1gca.execute-api.ap-northeast-1.amazonaws.com/dev';
+    const apiKey = ''; // Not needed for IAM auth
+    const novaService = new NovaService(apiEndpoint, apiKey);
+    return new RecommendationGenerator(novaService);
+  });
 
   useEffect(() => {
     if (!isLoading && !profile) {
@@ -35,31 +110,94 @@ export default function HomeScreen() {
   }, [profile, isLoading]);
 
   useEffect(() => {
-    if (profile) {
-      loadRecommendations();
+    if (profile && !isLoading) {
+      loadRecommendation();
     }
-  }, [profile]);
+  }, [profile, isLoading]);
 
-  const loadRecommendations = async () => {
+  const loadRecommendation = async () => {
     if (!profile) return;
-    
-    setLoadingRecommendation(true);
+
     try {
-      const outbreakData = getOutbreakDataForArea(profile.area, profile.country);
-      const childrenAges = profile.children?.map((c) => c.ageGroup) || [];
+      const childProfile = convertProfileToChildProfile(profile);
+      const language = profile.country === 'JP' ? Language.JAPANESE : Language.ENGLISH;
+
+      // Check cache first
+      const cached = await cacheManager.getCachedRecommendation(childProfile);
       
-      const rec = await generateRecommendations({
-        area: profile.area,
-        country: profile.country,
-        outbreaks: outbreakData,
-        childrenAges,
-      });
-      
-      setRecommendation(rec);
-    } catch (error) {
-      console.error("Failed to load recommendations:", error);
+      if (cached && !cached.isStale) {
+        setRiskLevel(cached.recommendation.riskLevel);
+        setRecommendation(cached.recommendation);
+        setOutbreakDataTimestamp(cached.outbreakDataTimestamp);
+        return;
+      }
+
+      // Generate new recommendation
+      await generateNewRecommendation(childProfile, language);
+    } catch (err) {
+      console.error('Error loading recommendation:', err);
+    }
+  };
+
+  const generateNewRecommendation = async (
+    childProfile: ChildProfile,
+    language: Language
+  ) => {
+    setIsGenerating(true);
+
+    try {
+      const mockOutbreakData = getOutbreakDataForArea(
+        childProfile.location.stateOrPrefecture,
+        childProfile.location.country as 'JP' | 'US'
+      );
+      const outbreakData = convertMockToOutbreakData(mockOutbreakData);
+      const dataTimestamp = new Date();
+
+      // Calculate risk level
+      const calculatedRiskLevel = await riskAnalyzer.calculateRiskLevel(
+        outbreakData,
+        childProfile
+      );
+      setRiskLevel(calculatedRiskLevel);
+
+      // Generate recommendation
+      const newRecommendation = await recommendationGenerator.generateRecommendation(
+        calculatedRiskLevel,
+        outbreakData,
+        childProfile,
+        language
+      );
+
+      setRecommendation(newRecommendation);
+      setOutbreakDataTimestamp(dataTimestamp);
+
+      // Cache the result
+      await cacheManager.setCachedRecommendation(
+        childProfile,
+        newRecommendation,
+        dataTimestamp
+      );
+    } catch (err) {
+      console.error('Error generating recommendation:', err);
     } finally {
-      setLoadingRecommendation(false);
+      setIsGenerating(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    if (!profile) return;
+
+    setRefreshing(true);
+    try {
+      const childProfile = convertProfileToChildProfile(profile);
+      const language = profile.country === 'JP' ? Language.JAPANESE : Language.ENGLISH;
+
+      await cacheManager.invalidateCache(childProfile);
+      await generateNewRecommendation(childProfile, language);
+    } catch (err) {
+      console.error('Error refreshing:', err);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -76,8 +214,8 @@ export default function HomeScreen() {
   }
 
   const strings = t(profile.country);
-  const outbreakData = getOutbreakDataForArea(profile.area, profile.country);
-  const highRiskAreas = getHighestRiskAreas(profile.country, 5);
+  const outbreakData = getOutbreakDataForArea(profile.area, profile.country as 'JP' | 'US');
+  const highRiskAreas = getHighestRiskAreas(profile.country as 'JP' | 'US', 5);
 
   const getLevelColor = (level: "low" | "medium" | "high") => {
     switch (level) {
@@ -103,235 +241,219 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Local Outbreak Status */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="location" size={20} color={Colors.primary} />
-            <Text style={styles.sectionTitle}>
-              {profile.country === "JP" 
-                ? `${profile.area}の流行状況` 
-                : `${profile.area} Outbreak Status`}
-            </Text>
-          </View>
-          {outbreakData.length > 0 ? (
-            <View style={styles.diseaseGrid}>
-              {outbreakData.map((outbreak) => {
-                const disease = DISEASES.find((d) => d.id === outbreak.diseaseId);
-                if (!disease) return null;
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* Section 1: AI Recommendations (moved to top) */}
+        <View style={styles.recommendationSection}>
+          {riskLevel && (
+            <View style={styles.section}>
+              <RiskIndicator level={riskLevel as RiskIndicatorLevel} />
+            </View>
+          )}
 
-                return (
-                  <View key={outbreak.diseaseId} style={styles.diseaseCard}>
-                    <View
-                      style={[
-                        styles.diseaseIcon,
-                        { backgroundColor: disease.color + "20" },
-                      ]}
-                    >
-                      <Ionicons
-                        name={disease.icon as any}
-                        size={24}
-                        color={disease.color}
-                      />
+          {isGenerating && riskLevel && !recommendation && (
+            <View style={styles.section}>
+              <LoadingMessage
+                riskLevel={riskLevel as RiskIndicatorLevel}
+                message={
+                  profile?.country === 'JP'
+                    ? 'パーソナライズされたガイダンスを生成中...'
+                    : 'Generating personalized guidance...'
+                }
+              />
+            </View>
+          )}
+
+          {recommendation && (
+            <View style={styles.section}>
+              <RecommendationContent
+                recommendation={recommendation}
+              />
+            </View>
+          )}
+        </View>
+
+        {/* Section 2: Feedback UI */}
+        {recommendation && profile && (
+          <View style={styles.section}>
+            <FeedbackUI
+              recommendationId={recommendation.id}
+              riskLevel={recommendation.riskLevel}
+              ageRange={recommendation.childAgeRange}
+              language={recommendation.language}
+              source={recommendation.source}
+            />
+          </View>
+        )}
+
+        {/* Section 3: Local Outbreak Status */}
+        <View style={styles.outbreakSection}>
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="location" size={20} color={Colors.primary} />
+              <Text style={styles.sectionTitle}>
+                {profile.country === "JP" 
+                  ? `${profile.area}の流行状況` 
+                  : `${profile.area} Outbreak Status`}
+              </Text>
+            </View>
+            {outbreakData.length > 0 ? (
+              <View style={styles.diseaseGrid}>
+                {outbreakData.map((outbreak) => {
+                  const disease = DISEASES.find((d) => d.id === outbreak.diseaseId);
+                  if (!disease) return null;
+
+                  return (
+                    <View key={outbreak.diseaseId} style={styles.diseaseCard}>
+                      <View
+                        style={[
+                          styles.diseaseIcon,
+                          { backgroundColor: disease.color + "20" },
+                        ]}
+                      >
+                        <Ionicons
+                          name={disease.icon as any}
+                          size={24}
+                          color={disease.color}
+                        />
+                      </View>
+                      <Text style={styles.diseaseName}>
+                        {getDiseaseName(disease, profile.country)}
+                      </Text>
+                      <View
+                        style={[
+                          styles.levelBadge,
+                          { backgroundColor: getLevelColor(outbreak.level) + "20" },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.levelText,
+                            { color: getLevelColor(outbreak.level) },
+                          ]}
+                        >
+                          {getLevelLabel(outbreak.level)}
+                        </Text>
+                      </View>
+                      <Text style={styles.casesText}>{outbreak.cases}{strings.home.cases}</Text>
+                      <View style={styles.changeContainer}>
+                        <Ionicons
+                          name={
+                            outbreak.weeklyChange > 0
+                              ? "trending-up"
+                              : outbreak.weeklyChange < 0
+                              ? "trending-down"
+                              : "remove"
+                          }
+                          size={14}
+                          color={
+                            outbreak.weeklyChange > 0
+                              ? Colors.danger
+                              : outbreak.weeklyChange < 0
+                              ? Colors.success
+                              : Colors.textTertiary
+                          }
+                        />
+                        <Text
+                          style={[
+                            styles.changeText,
+                            {
+                              color:
+                                outbreak.weeklyChange > 0
+                                  ? Colors.danger
+                                  : outbreak.weeklyChange < 0
+                                  ? Colors.success
+                                  : Colors.textTertiary,
+                            },
+                          ]}
+                        >
+                          {outbreak.weeklyChange > 0 ? "+" : ""}
+                          {outbreak.weeklyChange}%
+                        </Text>
+                      </View>
                     </View>
-                    <Text style={styles.diseaseName}>
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={48}
+                  color={Colors.success}
+                />
+                <Text style={styles.emptyText}>
+                  {strings.home.noOutbreaks}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Section 4: High Risk Areas */}
+        <View style={styles.highRiskSection}>
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="warning" size={20} color={Colors.danger} />
+              <Text style={styles.sectionTitle}>{strings.home.highRiskAreas}</Text>
+            </View>
+            {highRiskAreas.map((outbreak, index) => {
+              const disease = DISEASES.find((d) => d.id === outbreak.diseaseId);
+              if (!disease) return null;
+
+              return (
+                <View key={`${outbreak.area}-${outbreak.diseaseId}`} style={styles.riskCard}>
+                  <View style={styles.riskRank}>
+                    <Text style={styles.rankNumber}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.riskInfo}>
+                    <Text style={styles.riskArea}>{outbreak.area}</Text>
+                    <Text style={styles.riskDisease}>
                       {getDiseaseName(disease, profile.country)}
                     </Text>
+                  </View>
+                  <View style={styles.riskStats}>
+                    <Text style={styles.riskCases}>{outbreak.cases}{strings.home.cases}</Text>
                     <View
                       style={[
-                        styles.levelBadge,
+                        styles.levelBadgeSmall,
                         { backgroundColor: getLevelColor(outbreak.level) + "20" },
                       ]}
                     >
                       <Text
                         style={[
-                          styles.levelText,
+                          styles.levelTextSmall,
                           { color: getLevelColor(outbreak.level) },
                         ]}
                       >
                         {getLevelLabel(outbreak.level)}
                       </Text>
                     </View>
-                    <Text style={styles.casesText}>{outbreak.cases}{strings.home.cases}</Text>
-                    <View style={styles.changeContainer}>
-                      <Ionicons
-                        name={
-                          outbreak.weeklyChange > 0
-                            ? "trending-up"
-                            : outbreak.weeklyChange < 0
-                            ? "trending-down"
-                            : "remove"
-                        }
-                        size={14}
-                        color={
-                          outbreak.weeklyChange > 0
-                            ? Colors.danger
-                            : outbreak.weeklyChange < 0
-                            ? Colors.success
-                            : Colors.textTertiary
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.changeText,
-                          {
-                            color:
-                              outbreak.weeklyChange > 0
-                                ? Colors.danger
-                                : outbreak.weeklyChange < 0
-                                ? Colors.success
-                                : Colors.textTertiary,
-                          },
-                        ]}
-                      >
-                        {outbreak.weeklyChange > 0 ? "+" : ""}
-                        {outbreak.weeklyChange}%
-                      </Text>
-                    </View>
                   </View>
-                );
-              })}
-            </View>
-          ) : (
-            <View style={styles.emptyState}>
-              <Ionicons
-                name="checkmark-circle"
-                size={48}
-                color={Colors.success}
-              />
-              <Text style={styles.emptyText}>
-                {strings.home.noOutbreaks}
-              </Text>
-            </View>
-          )}
+                </View>
+              );
+            })}
+          </View>
         </View>
 
-        {/* AI Recommendations */}
-        {recommendation && (
+        {/* Data Timestamp (moved to bottom) */}
+        {outbreakDataTimestamp && (
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="bulb" size={20} color={Colors.primary} />
-              <Text style={styles.sectionTitle}>
-                {profile.country === "JP" ? "おすすめの対策" : "Recommendations"}
-              </Text>
-            </View>
-            
-            {loadingRecommendation ? (
-              <View style={styles.loadingCard}>
-                <ActivityIndicator size="small" color={Colors.primary} />
-              </View>
-            ) : (
-              <View style={[
-                styles.recommendationCard,
-                recommendation.priority === "high" && styles.recommendationCardHigh,
-              ]}>
-                <View style={styles.recommendationHeader}>
-                  <View style={[
-                    styles.priorityBadge,
-                    { backgroundColor: 
-                      recommendation.priority === "high" ? Colors.danger + "20" :
-                      recommendation.priority === "medium" ? Colors.warning + "20" :
-                      Colors.success + "20"
-                    }
-                  ]}>
-                    <Text style={[
-                      styles.priorityText,
-                      { color:
-                        recommendation.priority === "high" ? Colors.danger :
-                        recommendation.priority === "medium" ? Colors.warning :
-                        Colors.success
-                      }
-                    ]}>
-                      {recommendation.priority === "high" ? (profile.country === "JP" ? "高" : "High") :
-                       recommendation.priority === "medium" ? (profile.country === "JP" ? "中" : "Med") :
-                       (profile.country === "JP" ? "低" : "Low")}
-                    </Text>
-                  </View>
-                </View>
-                
-                <Text style={styles.recommendationSummary}>
-                  {recommendation.summary}
-                </Text>
-                
-                <View style={styles.actionsList}>
-                  {recommendation.actions.map((action, index) => (
-                    <View key={index} style={styles.actionItem}>
-                      <Ionicons name="checkmark-circle" size={18} color={Colors.primary} />
-                      <Text style={styles.actionText}>{action}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
+            <DataTimestamp outbreakDataTimestamp={outbreakDataTimestamp} />
           </View>
         )}
 
-        {/* High Risk Areas */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="warning" size={20} color={Colors.danger} />
-            <Text style={styles.sectionTitle}>{strings.home.highRiskAreas}</Text>
-          </View>
-          {highRiskAreas.map((outbreak, index) => {
-            const disease = DISEASES.find((d) => d.id === outbreak.diseaseId);
-            if (!disease) return null;
-
-            return (
-              <View key={`${outbreak.area}-${outbreak.diseaseId}`} style={styles.riskCard}>
-                <View style={styles.riskRank}>
-                  <Text style={styles.rankNumber}>{index + 1}</Text>
-                </View>
-                <View style={styles.riskInfo}>
-                  <Text style={styles.riskArea}>{outbreak.area}</Text>
-                  <Text style={styles.riskDisease}>
-                    {getDiseaseName(disease, profile.country)}
-                  </Text>
-                </View>
-                <View style={styles.riskStats}>
-                  <Text style={styles.riskCases}>{outbreak.cases}{strings.home.cases}</Text>
-                  <View
-                    style={[
-                      styles.levelBadgeSmall,
-                      { backgroundColor: getLevelColor(outbreak.level) + "20" },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.levelTextSmall,
-                        { color: getLevelColor(outbreak.level) },
-                      ]}
-                    >
-                      {getLevelLabel(outbreak.level)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            );
-          })}
-        </View>
-
-        {/* Children Summary */}
-        {profile.children && profile.children.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="people" size={20} color={Colors.primary} />
-              <Text style={styles.sectionTitle}>{strings.home.children}</Text>
-            </View>
-            {profile.children.map((child) => (
-              <View key={child.id} style={styles.childCard}>
-                <Ionicons name="person" size={20} color={Colors.primary} />
-                <Text style={styles.childName}>{child.name}</Text>
-                <Text style={styles.childAge}>{child.ageGroup}</Text>
-              </View>
-            ))}
+        {/* Medical Disclaimer */}
+        {profile && (
+          <View style={styles.disclaimer}>
+            <MedicalDisclaimer country={profile.country} />
           </View>
         )}
-
-        {/* Disclaimer */}
-        <View style={styles.disclaimer}>
-          <Ionicons name="information-circle" size={16} color={Colors.textTertiary} />
-          <Text style={styles.disclaimerText}>{strings.disclaimer}</Text>
-        </View>
       </ScrollView>
     </View>
   );
@@ -359,9 +481,22 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 100,
   },
+  // Section containers for visual separation
+  recommendationSection: {
+    backgroundColor: Colors.background,
+    paddingBottom: 8,
+  },
+  outbreakSection: {
+    backgroundColor: Colors.background,
+    paddingBottom: 8,
+  },
+  highRiskSection: {
+    backgroundColor: Colors.background,
+    paddingBottom: 8,
+  },
   section: {
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 16,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -373,61 +508,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: "Inter_700Bold",
     color: Colors.text,
-  },
-  loadingCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 24,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  recommendationCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  recommendationCardHigh: {
-    borderColor: Colors.danger,
-    borderWidth: 2,
-  },
-  recommendationHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  priorityBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  priorityText: {
-    fontSize: 12,
-    fontFamily: "Inter_700Bold",
-  },
-  recommendationSummary: {
-    fontSize: 15,
-    fontFamily: "Inter_500Medium",
-    color: Colors.text,
-    lineHeight: 22,
-    marginBottom: 16,
-  },
-  actionsList: {
-    gap: 12,
-  },
-  actionItem: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-  },
-  actionText: {
-    flex: 1,
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
-    lineHeight: 20,
   },
   diseaseGrid: {
     flexDirection: "row",
@@ -573,18 +653,8 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   disclaimer: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
     paddingHorizontal: 24,
     paddingVertical: 20,
     marginTop: 16,
-  },
-  disclaimerText: {
-    flex: 1,
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textTertiary,
-    lineHeight: 18,
   },
 });

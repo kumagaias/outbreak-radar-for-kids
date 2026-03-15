@@ -1,0 +1,17 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - cd mobile
+        - npm ci
+    build:
+      commands:
+        - npx expo export --platform web
+  artifacts:
+    baseDirectory: mobile/dist
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - mobile/node_modules/**/*

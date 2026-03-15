@@ -35,6 +35,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="recommendations"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: "設定",

@@ -9,11 +9,17 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
-import { StyleSheet } from "react-native";
+import { StyleSheet, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
 import { ProfileProvider } from "@/lib/profile-context";
+import { initializeAIRecommendations } from "@/lib/ai-recommendations-init";
+
+// Import Leaflet CSS for web
+if (Platform.OS === "web") {
+  require("leaflet/dist/leaflet.css");
+}
 
 SplashScreen.preventAutoHideAsync();
 
@@ -39,6 +45,14 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
+
+  // Initialize AI recommendations background pre-generation
+  useEffect(() => {
+    initializeAIRecommendations().catch((error) => {
+      console.error('Failed to initialize AI recommendations:', error);
+      // Don't block app startup on initialization failure
+    });
+  }, []);
 
   if (!fontsLoaded && !fontError) return null;
 

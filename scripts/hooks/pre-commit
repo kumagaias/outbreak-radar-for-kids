@@ -1,0 +1,24 @@
+#!/bin/sh
+
+# Pre-commit hook: Run tests and security checks before commit
+
+echo "🔍 Running pre-commit checks..."
+
+# Run backend unit tests only (mobile tests are optional in early phase)
+echo "Running backend unit tests..."
+cd backend && npm test
+if [ $? -ne 0 ]; then
+  echo "❌ Backend tests failed. Fix them before committing."
+  exit 1
+fi
+cd ..
+
+# Run gitleaks secret scanning
+echo "Running gitleaks secret scanning..."
+gitleaks protect --staged --verbose
+if [ $? -ne 0 ]; then
+  echo "❌ Secrets detected. Remove them before committing."
+  exit 1
+fi
+
+echo "✅ All pre-commit checks passed."

@@ -1,0 +1,29 @@
+{
+  "name": "outbreak-data-fetcher",
+  "version": "1.0.0",
+  "description": "Lambda function to fetch and normalize outbreak data from CDC and Japan data sources",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest --coverage",
+    "test:watch": "jest --watch"
+  },
+  "keywords": [
+    "aws",
+    "lambda",
+    "outbreak",
+    "cdc",
+    "surveillance"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/client-secrets-manager": "^3.0.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0",
+    "follow-redirects": "^1.15.11",
+    "iconv-lite": "^0.7.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}

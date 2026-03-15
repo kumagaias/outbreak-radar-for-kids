@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Generate Favicon PNG</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    canvas {
+      border: 1px solid #ddd;
+      margin: 20px 0;
+    }
+    button {
+      background: #0EA5E9;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background: #0284C7;
+    }
+    .preview {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Favicon Generator</h1>
+  <p>This tool generates a PNG favicon from the SVG design.</p>
+  
+  <div class="preview">
+    <div>
+      <h3>Preview (32x32)</h3>
+      <canvas id="canvas32" width="32" height="32"></canvas>
+    </div>
+    <div>
+      <h3>Preview (64x64)</h3>
+      <canvas id="canvas64" width="64" height="64"></canvas>
+    </div>
+  </div>
+  
+  <button onclick="downloadFavicon()">Download favicon.png (32x32)</button>
+  <button onclick="downloadFavicon64()">Download favicon-64.png (64x64)</button>
+  
+  <script>
+    const svgContent = `
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="shieldGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#0EA5E9;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0284C7;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <path d="M16 2L4 7V14C4 21 8 27 16 30C24 27 28 21 28 14V7L16 2Z" fill="url(#shieldGradient)"/>
+  <circle cx="16" cy="16" r="9" stroke="white" stroke-width="1.5" fill="none" opacity="0.4"/>
+  <circle cx="16" cy="16" r="6" stroke="white" stroke-width="1.5" fill="none" opacity="0.6"/>
+  <rect x="15" y="12" width="2" height="8" fill="white" rx="0.5"/>
+  <rect x="12" y="15" width="8" height="2" fill="white" rx="0.5"/>
+  <circle cx="16" cy="16" r="1.5" fill="#FCD34D"/>
+</svg>`;
+
+    function drawFavicon(canvas, size) {
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      
+      img.onload = function() {
+        ctx.clearRect(0, 0, size, size);
+        ctx.drawImage(img, 0, 0, size, size);
+        URL.revokeObjectURL(url);
+      };
+      
+      img.src = url;
+    }
+    
+    // Draw previews
+    drawFavicon(document.getElementById('canvas32'), 32);
+    drawFavicon(document.getElementById('canvas64'), 64);
+    
+    function downloadFavicon() {
+      const canvas = document.getElementById('canvas32');
+      canvas.toBlob(function(blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'favicon.png';
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    }
+    
+    function downloadFavicon64() {
+      const canvas = document.getElementById('canvas64');
+      canvas.toBlob(function(blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'favicon-64.png';
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    }
+  </script>
+</body>
+</html>
