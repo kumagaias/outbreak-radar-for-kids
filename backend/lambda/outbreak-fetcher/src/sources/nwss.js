@@ -83,8 +83,8 @@ async function fetchNWSSData(options = {}) {
 /**
  * Build SODA API query string
  * 
- * Strategy: Account for CDC API publication delay (~4 weeks)
- * Fetch data from 8 weeks ago to ensure we get published data
+ * Strategy: Account for CDC API publication delay (~3 months)
+ * Fetch data from 12 weeks ago to ensure we get published data
  * 
  * @param {Object} params - Query parameters
  * @returns {string} URL-encoded query string
@@ -92,9 +92,9 @@ async function fetchNWSSData(options = {}) {
 function buildSODAQuery(params) {
   const { state, county, disease } = params;
   
-  // Account for CDC publication delay: use date from 8 weeks ago
+  // Account for CDC publication delay: use date from 12 weeks ago
   const referenceDate = new Date();
-  referenceDate.setDate(referenceDate.getDate() - 56); // 8 weeks back
+  referenceDate.setDate(referenceDate.getDate() - 84); // 12 weeks back
   
   // Fetch data from 30 days before reference date
   const startDate = new Date(referenceDate);

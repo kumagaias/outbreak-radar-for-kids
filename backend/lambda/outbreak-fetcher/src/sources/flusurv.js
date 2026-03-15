@@ -248,9 +248,9 @@ function dateToEpiweek(date) {
  * @returns {string} Epiweeks range (e.g., '202401-202404')
  */
 function getRecentEpiweeksRange(weeksBack = 4) {
-  // Account for CDC publication delay: use date from 8 weeks ago as reference
+  // Account for CDC publication delay: use date from 12 weeks ago as reference
   const referenceDate = new Date();
-  referenceDate.setDate(referenceDate.getDate() - 56); // 8 weeks back
+  referenceDate.setDate(referenceDate.getDate() - 84); // 12 weeks back
   
   const startDate = new Date(referenceDate);
   startDate.setDate(startDate.getDate() - (weeksBack * 7));
