@@ -133,18 +133,21 @@ async function fetchAllSources(states) {
   };
 
   // Calculate epiweeks range for Delphi Epidata APIs
-  // Use latest available data (last 8 weeks to ensure we get recent data)
+  // Account for publication delay: use 8 weeks back as reference, then look back 8 more weeks
   const epiweeksRange = getRecentEpiweeksRange(8);
 
   // Calculate current year and week for Japan data sources
-  // Use latest available data
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentWeek = getWeekNumber(now);
+  // Account for publication delay: use 8 weeks back
+  const referenceDate = new Date();
+  referenceDate.setDate(referenceDate.getDate() - 56); // 8 weeks back
+  const currentYear = referenceDate.getFullYear();
+  const currentWeek = getWeekNumber(referenceDate);
+  
+  console.log(`Reference date for data fetching: ${referenceDate.toISOString().split('T')[0]}`);
 
   // Fetch from all sources in parallel
   const fetchPromises = states.flatMap(state => [
-    // NWSS wastewater data (fetches latest 1000 records automatically)
+    // NWSS wastewater data (fetches data from 8 weeks ago with 30-day lookback)
     fetchWithRetry(() => fetchNWSSData({ state }))
       .then(data => {
         results.nwss.data.push(...data);

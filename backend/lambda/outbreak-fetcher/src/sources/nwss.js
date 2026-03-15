@@ -83,8 +83,8 @@ async function fetchNWSSData(options = {}) {
 /**
  * Build SODA API query string
  * 
- * Strategy: Fetch most recent data available (no date filter initially)
- * This ensures we get the latest data regardless of current date
+ * Strategy: Account for CDC API publication delay (~4 weeks)
+ * Fetch data from 8 weeks ago to ensure we get published data
  * 
  * @param {Object} params - Query parameters
  * @returns {string} URL-encoded query string
@@ -92,24 +92,37 @@ async function fetchNWSSData(options = {}) {
 function buildSODAQuery(params) {
   const { state, county, disease } = params;
   
+  // Account for CDC publication delay: use date from 8 weeks ago
+  const referenceDate = new Date();
+  referenceDate.setDate(referenceDate.getDate() - 56); // 8 weeks back
+  
+  // Fetch data from 30 days before reference date
+  const startDate = new Date(referenceDate);
+  startDate.setDate(startDate.getDate() - 30);
+  
+  const startDateStr = startDate.toISOString().split('T')[0];
+  const endDateStr = referenceDate.toISOString().split('T')[0];
+  
   // Build WHERE clause
   const whereConditions = [];
   
   // Filter by state (use reporting_jurisdiction field)
   whereConditions.push(`reporting_jurisdiction='${state}'`);
   
+  // Filter by date range to get recent published data
+  whereConditions.push(`date_end>='${startDateStr}'`);
+  whereConditions.push(`date_end<='${endDateStr}'`);
+  
   // Filter by county if provided (use county_names field)
   if (county) {
     whereConditions.push(`county_names='${county}'`);
   }
   
-  // Note: NWSS dataset doesn't have pathogen field in current schema
-  // Disease filtering will be done post-fetch if needed
-  
   const whereClause = whereConditions.join(' AND ');
   
+  console.log(`NWSS date range: ${startDateStr} to ${endDateStr}`);
+  
   // Build query parameters
-  // Fetch most recent 1000 records (covers ~30 days typically)
   const queryParams = new URLSearchParams({
     '$where': whereClause,
     '$limit': 1000,

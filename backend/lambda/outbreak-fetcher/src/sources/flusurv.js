@@ -248,13 +248,17 @@ function dateToEpiweek(date) {
  * @returns {string} Epiweeks range (e.g., '202401-202404')
  */
 function getRecentEpiweeksRange(weeksBack = 4) {
-  // Use current date to get latest available data
-  const endDate = new Date();
-  const startDate = new Date();
+  // Account for CDC publication delay: use date from 8 weeks ago as reference
+  const referenceDate = new Date();
+  referenceDate.setDate(referenceDate.getDate() - 56); // 8 weeks back
+  
+  const startDate = new Date(referenceDate);
   startDate.setDate(startDate.getDate() - (weeksBack * 7));
   
   const startEpiweek = dateToEpiweek(startDate);
-  const endEpiweek = dateToEpiweek(endDate);
+  const endEpiweek = dateToEpiweek(referenceDate);
+  
+  console.log(`FluSurv epiweek range: ${startEpiweek} to ${endEpiweek}`);
   
   return `${startEpiweek}-${endEpiweek}`;
 }
