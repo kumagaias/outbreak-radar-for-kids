@@ -30,7 +30,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Colors } from '@/constants/colors';
 import { useProfile } from '@/lib/profile-context';
-import { getOutbreakDataForArea } from '@/lib/mock-data';
+import { type Country } from '@/lib/mock-data';
+import { fetchOutbreakData } from '@/lib/outbreak-data-service';
 
 // Components
 import { RiskIndicator, type RiskLevel as RiskIndicatorLevel } from '@/components/RiskIndicator';
@@ -197,11 +198,12 @@ export default function RecommendationScreen() {
     setIsGenerating(true);
 
     try {
-      // Get outbreak data
-      const mockOutbreakData = getOutbreakDataForArea(
+      // Get real outbreak data
+      const realOutbreakData = await fetchOutbreakData(
         childProfile.location.stateOrPrefecture,
-        childProfile.location.country
+        childProfile.location.country as Country
       );
+      const mockOutbreakData = realOutbreakData;
       const outbreakData = convertMockToOutbreakData(mockOutbreakData);
       const dataTimestamp = new Date();
 

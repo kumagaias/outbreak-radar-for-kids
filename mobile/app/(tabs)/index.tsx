@@ -16,9 +16,9 @@ import { t } from "@/lib/i18n";
 import {
   DISEASES,
   getDiseaseName,
-  getOutbreakDataForArea,
-  getHighestRiskAreas,
+  type OutbreakData as MockOutbreakData,
 } from "@/lib/mock-data";
+import { fetchOutbreakData } from "@/lib/outbreak-data-service";
 
 // AI Recommendation Components
 import { RiskIndicator, type RiskLevel as RiskIndicatorLevel } from '@/components/RiskIndicator';
@@ -91,6 +91,10 @@ export default function HomeScreen() {
   const [outbreakDataTimestamp, setOutbreakDataTimestamp] = useState<Date | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Real outbreak data state
+  const [outbreakData, setOutbreakData] = useState<MockOutbreakData[]>([]);
+  const [isLoadingOutbreakData, setIsLoadingOutbreakData] = useState(false);
 
   // AI Services
   const [riskAnalyzer] = useState(() => new RiskAnalyzer());
@@ -111,9 +115,27 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (profile && !isLoading) {
+      loadOutbreakData();
       loadRecommendation();
     }
   }, [profile, isLoading]);
+
+  // Load real outbreak data from API
+  const loadOutbreakData = async () => {
+    if (!profile) return;
+
+    setIsLoadingOutbreakData(true);
+    try {
+      const realData = await fetchOutbreakData(profile.area, profile.country as 'JP' | 'US');
+      setOutbreakData(realData);
+    } catch (error) {
+      console.error('Error fetching outbreak data:', error);
+      // Keep empty array on error - UI will show "no outbreaks"
+      setOutbreakData([]);
+    } finally {
+      setIsLoadingOutbreakData(false);
+    }
+  };
 
   const loadRecommendation = async () => {
     if (!profile) return;
@@ -146,16 +168,27 @@ export default function HomeScreen() {
     setIsGenerating(true);
 
     try {
-      const mockOutbreakData = getOutbreakDataForArea(
-        childProfile.location.stateOrPrefecture,
-        childProfile.location.country as 'JP' | 'US'
-      );
-      const outbreakData = convertMockToOutbreakData(mockOutbreakData);
+      // Use real outbreak data if available, otherwise fetch it
+      let realOutbreakData = outbreakData;
+      if (realOutbreakData.length === 0) {
+        try {
+          realOutbreakData = await fetchOutbreakData(
+            childProfile.location.stateOrPrefecture,
+            childProfile.location.country as 'JP' | 'US'
+          );
+          setOutbreakData(realOutbreakData);
+        } catch (error) {
+          console.error('Error fetching outbreak data for recommendation:', error);
+          realOutbreakData = [];
+        }
+      }
+      
+      const convertedOutbreakData = convertMockToOutbreakData(realOutbreakData);
       const dataTimestamp = new Date();
 
       // Calculate risk level
       const calculatedRiskLevel = await riskAnalyzer.calculateRiskLevel(
-        outbreakData,
+        convertedOutbreakData,
         childProfile
       );
       setRiskLevel(calculatedRiskLevel);
@@ -163,7 +196,7 @@ export default function HomeScreen() {
       // Generate recommendation
       const newRecommendation = await recommendationGenerator.generateRecommendation(
         calculatedRiskLevel,
-        outbreakData,
+        convertedOutbreakData,
         childProfile,
         language
       );
@@ -192,6 +225,9 @@ export default function HomeScreen() {
       const childProfile = convertProfileToChildProfile(profile);
       const language = profile.country === 'JP' ? Language.JAPANESE : Language.ENGLISH;
 
+      // Reload outbreak data
+      await loadOutbreakData();
+
       await cacheManager.invalidateCache(childProfile);
       await generateNewRecommendation(childProfile, language);
     } catch (err) {
@@ -214,8 +250,12 @@ export default function HomeScreen() {
   }
 
   const strings = t(profile.country);
-  const outbreakData = getOutbreakDataForArea(profile.area, profile.country as 'JP' | 'US');
-  const highRiskAreas = getHighestRiskAreas(profile.country as 'JP' | 'US', 5);
+  
+  // Calculate high risk areas from real outbreak data
+  const highRiskAreas = outbreakData
+    .filter(d => d.level === "high")
+    .sort((a, b) => b.cases - a.cases)
+    .slice(0, 5);
 
   const getLevelColor = (level: "low" | "medium" | "high") => {
     switch (level) {

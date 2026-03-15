@@ -18,11 +18,10 @@ import {
   DISEASES,
   getDiseaseName,
   getDiseaseDescription,
-  getOutbreakDataByDisease,
-  getOutbreakDataForArea,
   type Disease,
   type OutbreakData,
 } from "@/lib/mock-data";
+import { fetchOutbreakData } from "@/lib/outbreak-data-service";
 
 // Conditionally import MapView and GeoJSON only on native platforms
 let MapView: any;
@@ -179,17 +178,43 @@ export default function MapScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(300)).current;
   const webTopInset = Platform.OS === "web" ? 45 : 0;
+  
+  // Real outbreak data state
+  const [allOutbreakData, setAllOutbreakData] = useState<OutbreakData[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+
+  // Load real outbreak data
+  useEffect(() => {
+    if (profile) {
+      loadOutbreakData();
+    }
+  }, [profile]);
+
+  const loadOutbreakData = async () => {
+    if (!profile) return;
+
+    setIsLoadingData(true);
+    try {
+      const realData = await fetchOutbreakData(profile.area, profile.country as 'JP' | 'US');
+      setAllOutbreakData(realData);
+    } catch (error) {
+      console.error('Error fetching outbreak data:', error);
+      setAllOutbreakData([]);
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
 
   // Auto-select disease on mount: prioritize high-risk diseases
   useEffect(() => {
-    if (!profile || selectedDisease) return;
+    if (!profile || selectedDisease || allOutbreakData.length === 0) return;
 
-    // Find disease with highest risk outbreak
+    // Find disease with highest risk outbreak from real data
     let highestRiskDisease: string | null = null;
     let maxHighRiskCount = 0;
 
     DISEASES.forEach((disease) => {
-      const outbreaks = getOutbreakDataByDisease(disease.id, profile.country);
+      const outbreaks = allOutbreakData.filter(d => d.diseaseId === disease.id);
       const highRiskCount = outbreaks.filter((o) => o.level === "high").length;
       
       if (highRiskCount > maxHighRiskCount) {
@@ -201,7 +226,7 @@ export default function MapScreen() {
     // If no high-risk disease found, select first disease with any outbreak
     if (!highestRiskDisease) {
       for (const disease of DISEASES) {
-        const outbreaks = getOutbreakDataByDisease(disease.id, profile.country);
+        const outbreaks = allOutbreakData.filter(d => d.diseaseId === disease.id);
         if (outbreaks.length > 0) {
           highestRiskDisease = disease.id;
           break;
@@ -215,7 +240,7 @@ export default function MapScreen() {
     }
 
     setSelectedDisease(highestRiskDisease);
-  }, [profile, selectedDisease]);
+  }, [profile, selectedDisease, allOutbreakData]);
 
   // Modal animation
   useEffect(() => {
@@ -265,7 +290,7 @@ export default function MapScreen() {
 
   const strings = t(profile.country);
   const outbreakData = selectedDisease
-    ? getOutbreakDataByDisease(selectedDisease, profile.country)
+    ? allOutbreakData.filter(d => d.diseaseId === selectedDisease)
     : [];
 
   // Get polygon map for current country
@@ -543,7 +568,7 @@ export default function MapScreen() {
                 <Text style={styles.modalTitle}>{selectedArea}</Text>
                 
                 {(() => {
-                  const areaOutbreaks = getOutbreakDataForArea(selectedArea, profile.country);
+                  const areaOutbreaks = allOutbreakData.filter(d => d.area === selectedArea);
                   
                   if (areaOutbreaks.length === 0) {
                     return (
