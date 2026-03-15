@@ -83,7 +83,7 @@ function convertProfileToChildProfile(profile: any): ChildProfile {
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { profile, isLoading } = useProfile();
-  const webTopInset = Platform.OS === "web" ? 67 : 0;
+  const webTopInset = Platform.OS === "web" ? 45 : 0;
   
   // AI Recommendation State
   const [riskLevel, setRiskLevel] = useState<RiskLevel | null>(null);

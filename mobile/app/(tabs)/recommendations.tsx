@@ -101,7 +101,7 @@ function convertProfileToChildProfile(profile: any): ChildProfile {
 export default function RecommendationScreen() {
   const insets = useSafeAreaInsets();
   const { profile, isLoading: profileLoading } = useProfile();
-  const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const webTopInset = Platform.OS === 'web' ? 45 : 0;
 
   // State
   const [riskLevel, setRiskLevel] = useState<RiskLevel | null>(null);

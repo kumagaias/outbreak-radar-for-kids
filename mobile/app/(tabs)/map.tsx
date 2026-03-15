@@ -178,7 +178,7 @@ export default function MapScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(300)).current;
-  const webTopInset = Platform.OS === "web" ? 67 : 0;
+  const webTopInset = Platform.OS === "web" ? 45 : 0;
 
   // Auto-select disease on mount: prioritize high-risk diseases
   useEffect(() => {
