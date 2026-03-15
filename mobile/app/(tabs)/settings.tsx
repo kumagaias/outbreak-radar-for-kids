@@ -21,6 +21,7 @@ import { useProfile, type Child } from "@/lib/profile-context";
 import { t, type I18nStrings } from "@/lib/i18n";
 import { AGE_GROUPS, AREAS } from "@/lib/mock-data";
 import { getCurrentArea } from "@/lib/location";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -61,6 +62,83 @@ export default function SettingsScreen() {
               await clearProfile();
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               router.replace("/onboarding");
+            },
+          },
+        ]
+      );
+    }
+  }
+
+  async function handleClearCache() {
+    const message = profile?.country === "JP" 
+      ? "すべてのキャッシュをクリアしますか？\n次回起動時に推奨事項が再生成されます。"
+      : "Clear all cached recommendations?\nRecommendations will be regenerated on next launch.";
+    
+    const title = profile?.country === "JP" ? "キャッシュクリア" : "Clear Cache";
+    
+    if (Platform.OS === "web") {
+      const confirmed = window.confirm(message);
+      if (confirmed) {
+        try {
+          // Clear all recommendation cache keys
+          const allKeys = await AsyncStorage.getAllKeys();
+          const cacheKeys = allKeys.filter(key => key.startsWith('rec_'));
+          await AsyncStorage.multiRemove(cacheKeys);
+          
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          
+          Alert.alert(
+            title,
+            profile?.country === "JP" 
+              ? `${cacheKeys.length}件のキャッシュをクリアしました`
+              : `Cleared ${cacheKeys.length} cached items`
+          );
+        } catch (error) {
+          console.error('Failed to clear cache:', error);
+          Alert.alert(
+            "Error",
+            profile?.country === "JP" 
+              ? "キャッシュのクリアに失敗しました"
+              : "Failed to clear cache"
+          );
+        }
+      }
+    } else {
+      Alert.alert(
+        title,
+        message,
+        [
+          {
+            text: strings.settings.cancel,
+            style: "cancel",
+          },
+          {
+            text: profile?.country === "JP" ? "クリア" : "Clear",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                // Clear all recommendation cache keys
+                const allKeys = await AsyncStorage.getAllKeys();
+                const cacheKeys = allKeys.filter(key => key.startsWith('rec_'));
+                await AsyncStorage.multiRemove(cacheKeys);
+                
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                
+                Alert.alert(
+                  title,
+                  profile?.country === "JP" 
+                    ? `${cacheKeys.length}件のキャッシュをクリアしました`
+                    : `Cleared ${cacheKeys.length} cached items`
+                );
+              } catch (error) {
+                console.error('Failed to clear cache:', error);
+                Alert.alert(
+                  "Error",
+                  profile?.country === "JP" 
+                    ? "キャッシュのクリアに失敗しました"
+                    : "Failed to clear cache"
+                );
+              }
             },
           },
         ]
@@ -365,18 +443,55 @@ export default function SettingsScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>開発用 / Development</Text>
             
-            <Pressable
-              style={({ pressed }) => [
-                styles.resetButton,
-                pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] },
-              ]}
-              onPress={handleReset}
-            >
-              <Ionicons name="refresh" size={20} color={Colors.danger} />
-              <Text style={styles.resetButtonText}>
-                {strings.settings.resetProfile}
-              </Text>
-            </Pressable>
+            <View style={styles.card}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.devButton,
+                  pressed && { opacity: 0.8 },
+                ]}
+                onPress={handleClearCache}
+              >
+                <View style={styles.devButtonIcon}>
+                  <Ionicons name="trash-outline" size={20} color={Colors.warning} />
+                </View>
+                <View style={styles.devButtonContent}>
+                  <Text style={styles.devButtonTitle}>
+                    {profile?.country === "JP" ? "キャッシュをクリア" : "Clear Cache"}
+                  </Text>
+                  <Text style={styles.devButtonDesc}>
+                    {profile?.country === "JP" 
+                      ? "保存された推奨事項をすべて削除"
+                      : "Delete all cached recommendations"}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
+              </Pressable>
+
+              <View style={styles.divider} />
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.devButton,
+                  pressed && { opacity: 0.8 },
+                ]}
+                onPress={handleReset}
+              >
+                <View style={[styles.devButtonIcon, { backgroundColor: Colors.dangerLight }]}>
+                  <Ionicons name="refresh" size={20} color={Colors.danger} />
+                </View>
+                <View style={styles.devButtonContent}>
+                  <Text style={[styles.devButtonTitle, { color: Colors.danger }]}>
+                    {strings.settings.resetProfile}
+                  </Text>
+                  <Text style={styles.devButtonDesc}>
+                    {profile?.country === "JP" 
+                      ? "プロフィールを削除してオンボーディングに戻る"
+                      : "Delete profile and return to onboarding"}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
+              </Pressable>
+            </View>
           </View>
         )}
 
@@ -762,6 +877,35 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
     color: Colors.danger,
+  },
+  devButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  devButtonIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: Colors.warningLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  devButtonContent: {
+    flex: 1,
+  },
+  devButtonTitle: {
+    fontSize: 16,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  devButtonDesc: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    lineHeight: 18,
   },
   disclaimerContainer: {
     flexDirection: "row",
