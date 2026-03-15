@@ -205,42 +205,15 @@ export default function MapScreen() {
     }
   };
 
-  // Auto-select disease on mount: prioritize high-risk diseases
+  // Auto-select first disease on mount
   useEffect(() => {
-    if (!profile || selectedDisease || allOutbreakData.length === 0) return;
+    if (!profile || selectedDisease) return;
 
-    // Find disease with highest risk outbreak from real data
-    let highestRiskDisease: string | null = null;
-    let maxHighRiskCount = 0;
-
-    DISEASES.forEach((disease) => {
-      const outbreaks = allOutbreakData.filter(d => d.diseaseId === disease.id);
-      const highRiskCount = outbreaks.filter((o) => o.level === "high").length;
-      
-      if (highRiskCount > maxHighRiskCount) {
-        maxHighRiskCount = highRiskCount;
-        highestRiskDisease = disease.id;
-      }
-    });
-
-    // If no high-risk disease found, select first disease with any outbreak
-    if (!highestRiskDisease) {
-      for (const disease of DISEASES) {
-        const outbreaks = allOutbreakData.filter(d => d.diseaseId === disease.id);
-        if (outbreaks.length > 0) {
-          highestRiskDisease = disease.id;
-          break;
-        }
-      }
+    // Always select first disease by default
+    if (DISEASES.length > 0) {
+      setSelectedDisease(DISEASES[0].id);
     }
-
-    // Fallback to first disease if no outbreaks at all
-    if (!highestRiskDisease && DISEASES.length > 0) {
-      highestRiskDisease = DISEASES[0].id;
-    }
-
-    setSelectedDisease(highestRiskDisease);
-  }, [profile, selectedDisease, allOutbreakData]);
+  }, [profile, selectedDisease]);
 
   // Modal animation
   useEffect(() => {
