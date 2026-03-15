@@ -418,21 +418,30 @@ async function storeData(combinedData) {
   }
 
   // Transform combined data to DynamoDB format
-  const dynamoDBItems = combinedData.map(data => ({
-    geographicArea: data.location.state || data.location.prefecture || 'National',
-    country: data.location.country || 'US', // Add country field
-    disease: data.disease,
-    severity: data.severity,
-    metrics: data.metrics,
-    normalizedMetrics: data.metrics, // Already normalized
-    timestamp: data.lastUpdated,
-    dataSource: {
-      sources: data.dataSource.split(', '),
-      trend: data.trend
-    },
-    coverageLevel: data.location.county ? 'county' : 'state',
-    proximityAdjustment: 1.0
-  }));
+  const dynamoDBItems = combinedData.map(data => {
+    // Create unique disease ID that includes county if available
+    const county = data.location.county || data.location.ward;
+    const diseaseId = county 
+      ? `${data.disease}_${county}` 
+      : data.disease;
+    
+    return {
+      geographicArea: data.location.state || data.location.prefecture || 'National',
+      diseaseId: diseaseId, // Use unique disease ID
+      country: data.location.country || 'US',
+      disease: data.disease, // Keep original disease name
+      severity: data.severity,
+      metrics: data.metrics,
+      normalizedMetrics: data.metrics, // Already normalized
+      timestamp: data.lastUpdated,
+      dataSource: {
+        sources: data.dataSource.split(', '),
+        trend: data.trend
+      },
+      coverageLevel: county ? 'county' : 'state',
+      proximityAdjustment: 1.0
+    };
+  });
 
   return await batchStoreOutbreakData(dynamoDBItems);
 }
