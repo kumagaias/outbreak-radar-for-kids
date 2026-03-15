@@ -132,22 +132,20 @@ async function fetchAllSources(states) {
     estat: { success: false, data: [], error: null }
   };
 
-  // Calculate date range
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - DAYS_BACK);
-
   // Calculate epiweeks range for Delphi Epidata APIs
-  const epiweeksRange = getRecentEpiweeksRange(4); // Last 4 weeks
+  // Use latest available data (last 8 weeks to ensure we get recent data)
+  const epiweeksRange = getRecentEpiweeksRange(8);
 
   // Calculate current year and week for Japan data sources
-  const currentYear = endDate.getFullYear();
-  const currentWeek = getWeekNumber(endDate);
+  // Use latest available data
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentWeek = getWeekNumber(now);
 
   // Fetch from all sources in parallel
   const fetchPromises = states.flatMap(state => [
-    // NWSS wastewater data
-    fetchWithRetry(() => fetchNWSSData({ state, daysBack: DAYS_BACK }))
+    // NWSS wastewater data (fetches latest 1000 records automatically)
+    fetchWithRetry(() => fetchNWSSData({ state }))
       .then(data => {
         results.nwss.data.push(...data);
         results.nwss.success = true;
@@ -157,11 +155,8 @@ async function fetchAllSources(states) {
         results.nwss.error = error.message;
       }),
 
-    // NHSN hospital admission data
-    fetchWithRetry(() => fetchNHSNStateData(state, {
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0]
-    }))
+    // NHSN hospital admission data (fetches latest 1000 records automatically)
+    fetchWithRetry(() => fetchNHSNStateData(state))
       .then(data => {
         results.nhsn.data.push(...data);
         results.nhsn.success = true;

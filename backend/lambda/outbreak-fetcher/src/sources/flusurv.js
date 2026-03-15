@@ -248,6 +248,7 @@ function dateToEpiweek(date) {
  * @returns {string} Epiweeks range (e.g., '202401-202404')
  */
 function getRecentEpiweeksRange(weeksBack = 4) {
+  // Use current date to get latest available data
   const endDate = new Date();
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - (weeksBack * 7));

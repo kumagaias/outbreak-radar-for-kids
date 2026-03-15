@@ -83,16 +83,14 @@ async function fetchNWSSData(options = {}) {
 /**
  * Build SODA API query string
  * 
+ * Strategy: Fetch most recent data available (no date filter initially)
+ * This ensures we get the latest data regardless of current date
+ * 
  * @param {Object} params - Query parameters
  * @returns {string} URL-encoded query string
  */
 function buildSODAQuery(params) {
-  const { state, county, disease, daysBack } = params;
-  
-  // Calculate date threshold (YYYY-MM-DD format)
-  const dateThreshold = new Date();
-  dateThreshold.setDate(dateThreshold.getDate() - daysBack);
-  const dateStr = dateThreshold.toISOString().split('T')[0];
+  const { state, county, disease } = params;
   
   // Build WHERE clause
   const whereConditions = [];
@@ -108,15 +106,13 @@ function buildSODAQuery(params) {
   // Note: NWSS dataset doesn't have pathogen field in current schema
   // Disease filtering will be done post-fetch if needed
   
-  // Filter by date (use date_end for most recent sample date)
-  whereConditions.push(`date_end>='${dateStr}'`);
-  
   const whereClause = whereConditions.join(' AND ');
   
   // Build query parameters
+  // Fetch most recent 1000 records (covers ~30 days typically)
   const queryParams = new URLSearchParams({
     '$where': whereClause,
-    '$limit': MAX_RESULTS_PER_REQUEST,
+    '$limit': 1000,
     '$order': 'date_end DESC'
   });
   

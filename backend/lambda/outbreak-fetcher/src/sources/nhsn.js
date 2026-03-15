@@ -24,8 +24,8 @@ const DISEASE_MAPPING = {
  * Fetch NHSN hospital admission data
  * @param {Object} options - Fetch options
  * @param {string} options.state - State abbreviation (e.g., 'CA', 'NY')
- * @param {string} options.startDate - Start date (YYYY-MM-DD)
- * @param {string} options.endDate - End date (YYYY-MM-DD)
+ * @param {string} [options.startDate] - Optional start date (YYYY-MM-DD)
+ * @param {string} [options.endDate] - Optional end date (YYYY-MM-DD)
  * @param {string} options.apiKey - Optional SODA API key
  * @returns {Promise<Array>} Array of hospital admission records
  */
@@ -34,6 +34,7 @@ async function fetchNHSNData(options = {}) {
   
   // Build query parameters
   const params = new URLSearchParams();
+  // Fetch latest 1000 records (covers several months typically)
   params.append('$limit', '1000');
   
   // Add filters
@@ -41,6 +42,7 @@ async function fetchNHSNData(options = {}) {
   if (state) {
     whereConditions.push(`jurisdiction = '${state}'`);
   }
+  // Only add date filters if explicitly provided
   if (startDate) {
     whereConditions.push(`weekendingdate >= '${startDate}'`);
   }
