@@ -10,6 +10,7 @@ import {
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as Localization from 'expo-localization';
 import { Colors } from "@/constants/colors";
 import { useProfile } from "@/lib/profile-context";
 import { t } from "@/lib/i18n";
@@ -142,7 +143,9 @@ export default function HomeScreen() {
 
     try {
       const childProfile = convertProfileToChildProfile(profile);
-      const language = profile.country === 'JP' ? Language.JAPANESE : Language.ENGLISH;
+      // Use device locale to determine language, not country
+      const deviceLocale = Localization.locale || 'en';
+      const language = deviceLocale.startsWith('ja') ? Language.JAPANESE : Language.ENGLISH;
 
       // Check cache first
       const cached = await cacheManager.getCachedRecommendation(childProfile);
