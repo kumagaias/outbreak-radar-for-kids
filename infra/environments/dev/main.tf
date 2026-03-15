@@ -278,10 +278,10 @@ module "dynamodb_outbreak_data" {
 
   environment   = var.environment
   table_name    = "outbreak-data-${var.environment}"
-  hash_key      = "geographic_area"
-  range_key     = "disease_id"
+  hash_key      = "geographicArea"
+  range_key     = "diseaseId"
   ttl_enabled   = true
-  ttl_attribute = "expiration_time"
+  ttl_attribute = "expirationTime"
 
   tags = {
     Purpose = "Outbreak data storage with 10-day TTL"
