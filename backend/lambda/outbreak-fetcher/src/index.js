@@ -133,13 +133,14 @@ async function fetchAllSources(states) {
   };
 
   // Calculate epiweeks range for Delphi Epidata APIs
-  // Account for publication delay: use 12 weeks back as reference, then look back 8 more weeks
-  const epiweeksRange = getRecentEpiweeksRange(12);
+  // CDC data has significant publication delay (~11 months)
+  // Use 48 weeks (11 months) back as reference, then look back 8 more weeks
+  const epiweeksRange = getRecentEpiweeksRange(48);
 
   // Calculate current year and week for Japan data sources
-  // Account for publication delay: use 12 weeks back
+  // Account for publication delay: use 48 weeks (11 months) back
   const referenceDate = new Date();
-  referenceDate.setDate(referenceDate.getDate() - 84); // 12 weeks back
+  referenceDate.setDate(referenceDate.getDate() - 336); // 48 weeks back
   const currentYear = referenceDate.getFullYear();
   const currentWeek = getWeekNumber(referenceDate);
   
