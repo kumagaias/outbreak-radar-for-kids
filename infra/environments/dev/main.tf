@@ -316,6 +316,7 @@ module "outbreak_fetcher_lambda" {
   environment_variables = {
     DYNAMODB_OUTBREAK_TABLE_NAME = module.dynamodb_outbreak_data.table_name
     ENVIRONMENT                  = var.environment
+    TARGET_STATES                = "CA,NY,TX,FL,IL,PA,OH,MI,GA,NC,NJ,VA,WA,MA,AZ,TN,IN,MO,MD,WI,CO,MN,SC,AL,LA,KY,OR,OK,CT,UT,IA,NV,AR,MS,KS,NM,NE,WV,ID,HI,NH,ME,RI,MT,DE,SD,ND,AK,VT,WY"
   }
 
   iam_role_arn              = module.outbreak_fetcher_iam.role_arn
