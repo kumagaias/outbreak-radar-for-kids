@@ -419,8 +419,8 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Section 2: Recommendation Content with Risk Indicator (only show if outbreaks exist or risk is not LOW) */}
-        {recommendation && (outbreakData.length > 0 || riskLevel !== RiskLevel.LOW) && (
+        {/* Section 2: Recommendation Content with Risk Indicator (only show if outbreaks exist) */}
+        {recommendation && outbreakData.length > 0 && (
           <View style={styles.recommendationSection}>
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
@@ -456,7 +456,7 @@ export default function HomeScreen() {
         )}
 
         {/* Section 4: Feedback UI */}
-        {recommendation && profile && (outbreakData.length > 0 || riskLevel !== RiskLevel.LOW) && (
+        {recommendation && profile && outbreakData.length > 0 && (
           <View style={styles.section}>
             <FeedbackUI
               recommendationId={recommendation.id}
