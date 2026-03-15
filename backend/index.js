@@ -68,9 +68,27 @@ async function handleGetOutbreakData(event) {
     const queryParams = event.queryStringParameters || {};
     const area = queryParams.area;
     const country = queryParams.country || 'US';
+    const nationwide = queryParams.nationwide === 'true';
     
+    // If nationwide flag is set, return all data for the country
+    if (nationwide) {
+      console.log(`Fetching nationwide outbreak data for ${country}`);
+      
+      const outbreakData = await outbreakDataService.getNationwideOutbreakData(country);
+      
+      console.log(`Found ${outbreakData.length} outbreak records nationwide`);
+      
+      return createSuccessResponse({
+        data: outbreakData,
+        country,
+        nationwide: true,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Otherwise, require area parameter
     if (!area) {
-      return createErrorResponse(400, 'Missing required parameter: area');
+      return createErrorResponse(400, 'Missing required parameter: area (or use nationwide=true for all data)');
     }
     
     console.log(`Fetching outbreak data for ${area}, ${country}`);

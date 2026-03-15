@@ -42,6 +42,35 @@ class OutbreakDataService {
   }
 
   /**
+   * Get nationwide outbreak data for a country
+   * @param {string} country - Country code (JP or US)
+   * @returns {Promise<Array>} Array of outbreak data for all areas
+   */
+  async getNationwideOutbreakData(country) {
+    try {
+      const { ScanCommand } = require('@aws-sdk/lib-dynamodb');
+      
+      const params = {
+        TableName: this.tableName,
+        FilterExpression: 'country = :country',
+        ExpressionAttributeValues: {
+          ':country': country
+        }
+      };
+
+      const result = await this.docClient.send(new ScanCommand(params));
+      
+      console.log(`Scanned ${result.Items?.length || 0} items for country ${country}`);
+      
+      // Transform DynamoDB format to mobile app format
+      return (result.Items || []).map(item => this.transformToMobileFormat(item, country));
+    } catch (error) {
+      console.error('Error fetching nationwide outbreak data:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Transform DynamoDB item to mobile app format
    */
   transformToMobileFormat(item, country) {
