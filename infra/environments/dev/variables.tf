@@ -59,7 +59,7 @@ variable "amplify_service_role_arn" {
 variable "enable_provisioned_concurrency" {
   description = "Enable Provisioned Concurrency for Lambda function"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "provisioned_concurrency_count" {

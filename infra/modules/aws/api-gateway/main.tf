@@ -203,9 +203,9 @@ resource "aws_api_gateway_usage_plan" "this" {
   }
 }
 
-# Lambda permission for API Gateway
+# Lambda permission for API Gateway (from API Gateway module)
 resource "aws_lambda_permission" "api_gateway" {
-  statement_id  = "AllowAPIGatewayInvoke"
+  statement_id  = "AllowAPIGatewayInvoke-from-apigw"
   action        = "lambda:InvokeFunction"
   function_name = var.lambda_function_name
   principal     = "apigateway.amazonaws.com"

@@ -36,7 +36,7 @@ resource "aws_cloudwatch_log_group" "lambda_logs" {
 resource "aws_lambda_permission" "api_gateway" {
   count = var.api_gateway_execution_arn != "" ? 1 : 0
 
-  statement_id  = "AllowAPIGatewayInvoke"
+  statement_id  = "AllowAPIGatewayInvoke-${var.function_name}"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.this.function_name
   principal     = "apigateway.amazonaws.com"
@@ -45,10 +45,12 @@ resource "aws_lambda_permission" "api_gateway" {
 
 # Lambda alias for Provisioned Concurrency
 resource "aws_lambda_alias" "live" {
+  count = var.enable_provisioned_concurrency ? 1 : 0
+
   name             = "live"
   description      = "Live alias for Provisioned Concurrency"
   function_name    = aws_lambda_function.this.function_name
-  function_version = "$LATEST"
+  function_version = aws_lambda_function.this.version
 }
 
 # Provisioned Concurrency for morning peak hours (6:00-9:00 JST)
@@ -57,7 +59,9 @@ resource "aws_lambda_provisioned_concurrency_config" "morning_peak" {
 
   function_name                     = aws_lambda_function.this.function_name
   provisioned_concurrent_executions = var.provisioned_concurrency_count
-  qualifier                         = aws_lambda_alias.live.name
+  qualifier                         = aws_lambda_alias.live[0].name
+
+  depends_on = [aws_lambda_alias.live]
 }
 
 # Application Auto Scaling target for Provisioned Concurrency
@@ -66,9 +70,11 @@ resource "aws_appautoscaling_target" "lambda_provisioned_concurrency" {
 
   max_capacity       = var.provisioned_concurrency_max
   min_capacity       = var.provisioned_concurrency_min
-  resource_id        = "function:${aws_lambda_function.this.function_name}:provisioned-concurrency:${aws_lambda_alias.live.name}"
-  scalable_dimension = "lambda:function:ProvisionedConcurrentExecutions"
+  resource_id        = "function:${aws_lambda_function.this.function_name}:provisioned-concurrency:${aws_lambda_alias.live[0].name}"
+  scalable_dimension = "lambda:function:ProvisionedConcurrency"
   service_namespace  = "lambda"
+
+  depends_on = [aws_lambda_provisioned_concurrency_config.morning_peak]
 }
 
 # Scheduled scaling: Scale UP for morning peak (6:00 AM JST = 21:00 UTC previous day)

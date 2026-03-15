@@ -20,10 +20,10 @@ output "log_group_arn" {
 
 output "alias_arn" {
   description = "Lambda alias ARN"
-  value       = aws_lambda_alias.live.arn
+  value       = var.enable_provisioned_concurrency ? aws_lambda_alias.live[0].arn : ""
 }
 
 output "alias_name" {
   description = "Lambda alias name"
-  value       = aws_lambda_alias.live.name
+  value       = var.enable_provisioned_concurrency ? aws_lambda_alias.live[0].name : ""
 }
