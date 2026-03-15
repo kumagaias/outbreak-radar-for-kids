@@ -45,7 +45,7 @@ async function storeOutbreakData(outbreakData) {
   // Create DynamoDB item (using camelCase for consistency with backend queries)
   const item = {
     geographicArea: outbreakData.geographicArea,
-    diseaseId: `${outbreakData.disease}_${Date.now()}`, // Include timestamp for uniqueness
+    diseaseId: outbreakData.diseaseId || outbreakData.disease, // Use provided diseaseId or fall back to disease
     disease: outbreakData.disease,
     country: outbreakData.country || 'US', // Add country field
     severity: outbreakData.severity,
@@ -99,11 +99,11 @@ async function batchStoreOutbreakData(outbreakDataArray) {
   for (let i = 0; i < outbreakDataArray.length; i += BATCH_SIZE) {
     const batch = outbreakDataArray.slice(i, i + BATCH_SIZE);
     
-    const putRequests = batch.map(data => ({
+    const putRequests = batch.map((data, index) => ({
       PutRequest: {
         Item: {
           geographicArea: data.geographicArea,
-          diseaseId: `${data.disease}_${Date.now()}_${i}`, // Include batch index for uniqueness
+          diseaseId: data.diseaseId || data.disease, // Use provided diseaseId or fall back to disease
           disease: data.disease,
           country: data.country || 'US', // Add country field
           severity: data.severity,
@@ -136,7 +136,8 @@ async function batchStoreOutbreakData(outbreakDataArray) {
         console.warn(`Batch write had ${unprocessedCount} unprocessed items`);
       }
     } catch (error) {
-      console.error('Error in batch write:', error);
+      console.error('Error in batch write:', error.message || error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
       failureCount += batch.length;
     }
   }
