@@ -24,11 +24,11 @@ export function RiskIndicator({ level }: RiskIndicatorProps) {
   const getTitle = () => {
     switch (level) {
       case "high":
-        return "要注意";
+        return "対策";
       case "medium":
-        return "注意";
+        return "対策";
       case "low":
-        return "安心";
+        return "対策";
     }
   };
 

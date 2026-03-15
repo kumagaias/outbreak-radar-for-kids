@@ -158,6 +158,8 @@ export default function HomeScreen() {
       await generateNewRecommendation(childProfile, language);
     } catch (err) {
       console.error('Error loading recommendation:', err);
+      // Set default low risk if error occurs
+      setRiskLevel(RiskLevel.LOW);
     }
   };
 
@@ -185,6 +187,31 @@ export default function HomeScreen() {
       
       const convertedOutbreakData = convertMockToOutbreakData(realOutbreakData);
       const dataTimestamp = new Date();
+
+      // If no outbreak data, set risk to LOW and use fallback recommendation
+      if (convertedOutbreakData.length === 0) {
+        setRiskLevel(RiskLevel.LOW);
+        
+        // Generate low-risk recommendation without API call
+        const lowRiskRecommendation = await recommendationGenerator.generateRecommendation(
+          RiskLevel.LOW,
+          [],
+          childProfile,
+          language
+        );
+        
+        setRecommendation(lowRiskRecommendation);
+        setOutbreakDataTimestamp(dataTimestamp);
+        
+        // Cache the result
+        await cacheManager.setCachedRecommendation(
+          childProfile,
+          lowRiskRecommendation,
+          dataTimestamp
+        );
+        
+        return;
+      }
 
       // Calculate risk level
       const calculatedRiskLevel = await riskAnalyzer.calculateRiskLevel(
